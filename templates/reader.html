@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% set target = chapter['target'] %}
+{% set current = chapter['current'] %}
+{% set previous = chapter['previous'] %}
+{% set following = chapter['next'] %}
+{% macro render_highlighted_text(parts, fallback) -%}
+  {%- if parts -%}
+    {%- for part in parts -%}
+      {%- if part['is_match'] -%}<mark class="search-term-highlight">{{ part['text'] }}</mark>{%- else -%}{{ part['text'] }}{%- endif -%}
+    {%- endfor -%}
+  {%- else -%}{{ fallback }}{%- endif -%}
+{%- endmacro %}
+{% block title %}{{ current['title'] }} · {{ edition['title_zh'] }}{% endblock %}
+{% block content %}
+<div class="reader-layout">
+  <aside class="reader-sidebar">
+    <details class="reader-toc" open>
+      <summary>章节目录</summary>
+      <nav class="toc-list" aria-label="章节目录">
+        {% for item in chapter['toc'] %}
+          <a class="toc-item toc-{{ item['kind'] }}{% if item['is_current'] %} toc-current{% endif %}"
+             href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=item['first_segment_id'], _anchor='segment-' ~ item['first_segment_id']) }}"
+             {% if item['is_current'] %}aria-current="page"{% endif %}>{{ item['title'] }}</a>
+        {% endfor %}
+      </nav>
+    </details>
+  </aside>
+
+  <article class="reader-page">
+    <header class="reader-heading">
+      <p class="reader-crumbs">
+        <a href="{{ url_for('work_detail', work_id=edition['work_id']) }}">← 返回作品页</a>
+        <span class="lang-badge lang-{{ edition['language'] }}">{{ edition['language']|lang_label }}</span>
+      </p>
+      <h1>{{ edition['title_zh'] }}</h1>
+      <p class="reader-chapter-title">{{ current['title'] }}</p>
+    </header>
+
+    <nav class="chapter-nav" aria-label="章节导航">
+      {% if previous %}
+        <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">← 上一章</a>
+      {% else %}<span></span>{% endif %}
+      {% if following %}
+        <a rel="next" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=following['first_segment_id'], _anchor='segment-' ~ following['first_segment_id']) }}">下一章 →</a>
+      {% else %}<span></span>{% endif %}
+    </nav>
+
+    <section class="reader-text">
+      {% for segment in chapter['segments'] %}
+        <p id="segment-{{ segment['id'] }}" class="reader-paragraph{% if segment['id'] == primary_highlight_segment_id %} reader-target segment-highlight-primary{% elif segment['id'] in related_highlight_segment_ids %} segment-highlight-related{% endif %}">{{ render_highlighted_text(term_highlights.get(segment['id']), segment['content']) }}</p>
+      {% endfor %}
+    </section>
+
+    <nav class="chapter-nav chapter-nav-bottom" aria-label="章节导航">
+      {% if previous %}
+        <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">← 上一章</a>
+      {% else %}<span></span>{% endif %}
+      {% if following %}
+        <a rel="next" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=following['first_segment_id'], _anchor='segment-' ~ following['first_segment_id']) }}">下一章 →</a>
+      {% else %}<span></span>{% endif %}
+    </nav>
+  </article>
+</div>
+<script>
+  const readerToc = document.querySelector(".reader-toc");
+  if (readerToc && window.matchMedia("(max-width: 640px)").matches) {
+    readerToc.removeAttribute("open");
+  }
+  // 搜索命中跳转（?highlight=1）保留锚点定位到命中段落；
+  // 普通章节切换（目录、上一章/下一章、刷新）则去掉 hash 的滚动效应，停在页面顶部。
+  const jumpToHighlight = {{ "true" if primary_highlight_segment_id else "false" }};
+  if (jumpToHighlight) {
+    if (!window.location.hash) {
+      window.location.hash = "segment-{{ target['id'] }}";
+    }
+  } else {
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    if (window.location.hash) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    window.scrollTo(0, 0);
+  }
+  // 把当前章节（服务端按 segment id 用 aria-current 标出）滚入目录可视区中部；
+  // 只滚目录容器本身，已可见时不动。
+  const revealTocCurrent = () => {
+    const item = document.querySelector('.toc-item[aria-current="page"]');
+    if (!item) return;
+    const box = [document.querySelector(".toc-list"), readerToc]
+      .find((el) => el && el.scrollHeight > el.clientHeight + 1);
+    if (!box) return;
+    const boxRect = box.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    if (itemRect.top >= boxRect.top && itemRect.bottom <= boxRect.bottom) return;
+    box.scrollTop += itemRect.top - boxRect.top - (box.clientHeight - itemRect.height) / 2;
+  };
+  revealTocCurrent();
+  if (readerToc) {
+    readerToc.addEventListener("toggle", () => {
+      if (readerToc.open) revealTocCurrent();
+    });
+  }
+</script>
+{% include "_back_to_top.html" %}
+{% endblock %}

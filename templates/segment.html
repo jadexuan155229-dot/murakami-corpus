@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ seg['title_zh'] }} · 上下文{% endblock %}
+{% block content %}
+<article class="context-page">
+  <p class="crumbs"><a href="{{ url_for('work_detail', work_id=seg['work_id']) }}">{{ seg['title_zh'] }}</a>
+     <span class="lang-badge lang-{{ seg['language'] }}">{{ seg['language']|lang_label }}</span>
+     {% if seg['page'] %}第 {{ seg['page'] }} 页{% elif seg['chapter'] %}{{ seg['chapter'] }}{% endif %}</p>
+  {% for s in context %}
+    <p class="ctx {% if s['id'] == seg['id'] %}ctx-hit{% endif %}">{{ s['content'] }}</p>
+  {% endfor %}
+</article>
+{% endblock %}

@@ -1,0 +1,29 @@
+# Render Blueprint：在 Render 上选 "New > Blueprint" 并指向本仓库即可按此建服务。
+services:
+  - type: web
+    name: murakami-corpus
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # --preload：先在主进程完成建库/载入元数据，再 fork worker，
+    # 避免多个 worker 同时初始化同一个 SQLite 文件。
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --preload --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: CORPUS_SECRET_KEY
+        generateValue: true          # Render 自动生成随机值
+      - key: CORPUS_ADMIN_PASSWORD
+        sync: false                  # 在 Dashboard 手填；不填则上传/删除全站关闭
+    # free 档没有持久磁盘：容器重启后上传的内容会清空，
+    # 书架元数据每次启动都会从 works_metadata.csv 重新载入。
+    # 升级到付费档并挂载磁盘后，取消下面两段注释即可持久化：
+    #
+    # disk:
+    #   name: corpus-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    #
+    # 并把 CORPUS_DATA_DIR 加进 envVars：
+    #   - key: CORPUS_DATA_DIR
+    #     value: /var/data

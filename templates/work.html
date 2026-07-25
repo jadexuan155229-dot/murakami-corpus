@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ work['title_zh'] }}{% endblock %}
+{% block content %}
+<article class="work-page">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-list" role="status" aria-live="polite">
+      {% for category, message in messages %}
+        <p class="flash flash-{{ category }}">{{ message }}</p>
+      {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <h1>{{ work['title_zh'] }} <span class="year">{{ work['year'] or '' }}</span></h1>
+  <dl class="work-meta">
+    {% if work['title_ja'] %}<dt>日文版</dt><dd>{{ work['title_ja'] }}</dd>{% endif %}
+    {% if work['title_en'] %}<dt>英文版</dt><dd>{{ work['title_en'] }}</dd>{% endif %}
+    {% if work['genres']|json_list %}<dt>文体</dt><dd>{% for g in work['genres']|json_list %}<span class="tag">{{ g }}</span>{% endfor %}</dd>{% endif %}
+    {% if work['keywords']|json_list %}<dt>关键词</dt><dd>{% for k in work['keywords']|json_list %}<span class="tag">{{ k }}</span>{% endfor %}</dd>{% endif %}
+    {% if work['notes'] %}<dt>备注</dt><dd>{{ work['notes'] }}</dd>{% endif %}
+  </dl>
+
+  <h2>文本版本</h2>
+  {% if editions %}
+  <table class="shelf edition-table">
+    <thead><tr><th class="edition-language">语言</th><th class="edition-format">格式</th><th class="edition-filename">文件</th><th class="edition-count">片段数</th><th class="edition-index">索引</th><th class="edition-read">阅读</th><th class="edition-delete">删除</th></tr></thead>
+    <tbody>
+    {% for e in editions %}
+      <tr>
+        <td class="edition-language"><span class="lang-badge lang-{{ e['language'] }}">{{ e['language']|lang_label }}</span></td>
+        <td class="edition-format">{{ e['format'] }}{% if e['has_pages'] %} <span class="dim">带页码</span>{% endif %}</td>
+        <td class="edition-filename dim"><span class="edition-filename-text" title="{{ e['filename'] or '' }}">{{ e['filename'] or '' }}</span></td>
+        <td class="edition-count">{{ e['n_segments'] }}</td>
+        <td class="edition-index">{% if e['indexed_at'] %}<span class="ok">已索引</span>{% else %}<span class="dim">未索引</span>{% endif %}</td>
+        <td class="edition-read">
+          {% if e['indexed_at'] and e['n_segments'] %}<a class="read-link" href="{{ url_for('read_edition', edition_id=e['id']) }}">阅读</a>{% endif %}
+        </td>
+        <td class="edition-delete">
+          {% if writes_allowed %}
+          <form action="{{ url_for('delete_edition', work_id=work['id'], edition_id=e['id']) }}" method="post" onsubmit="return confirm('确定删除这个文本版本及其全部索引吗？此操作不可撤销。');">
+            <button class="delete-edition" type="submit">删除</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">尚未上传任何文本。</p>{% endif %}
+
+  {% if writes_allowed %}
+  <h2>上传文本（epub / txt / pdf）</h2>
+  <form class="upload" action="{{ url_for('upload', work_id=work['id']) }}" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".epub,.txt,.pdf" required>
+    <select name="lang">
+      <option value="zh">中文</option>
+      <option value="ja">日文</option>
+      <option value="en">英文</option>
+    </select>
+    <button type="submit">上传并建立索引</button>
+  </form>
+  {% endif %}
+</article>
+{% endblock %}

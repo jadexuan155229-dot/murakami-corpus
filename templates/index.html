@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+{% set genre_slugs = {'小说': 'novel', '中篇': 'novella', '短篇集': 'collection',
+                      '散文随笔': 'essay', '短篇': 'story', '童话': 'fairytale', '绘本': 'picture',
+                      '全集': 'complete', '学术': 'academic', '对谈': 'dialogue',
+                      '杂论': 'commentary', '游记': 'travel', '纪实': 'reportage', '访谈': 'interview'} %}
+{% set all_genres = [] %}
+{% for w in works %}{% for g in w['genres']|json_list %}{% if g not in all_genres %}{% set _ = all_genres.append(g) %}{% endif %}{% endfor %}{% endfor %}
+<section class="stats">
+  <span><b>{{ stats['works'] }}</b> 部作品</span>
+  <span><b>{{ stats['indexed'] }}</b> 个已索引版本</span>
+  <span><b>{{ stats['segments'] }}</b> 个可检索片段</span>
+</section>
+
+{% if not writes_allowed and not stats['segments'] %}
+<aside class="notice">
+  <p><b>这是工具本身的公开演示，语料库是空的。</b>
+  书架上 {{ stats['works'] }} 部作品只有元数据——出版年份、文体、关键词。
+  正文一段都没有，因为村上春树的作品仍在版权保护期内，把全文放到公开网站上检索属于发行行为。</p>
+  <p>想真正用起来，请把仓库 clone 到本地运行，用你自己合法拥有的电子书建立索引：
+  <a href="https://github.com/jadexuan155229-dot/murakami-corpus">GitHub 上的源码与说明</a>。</p>
+</aside>
+{% endif %}
+
+{% if all_genres %}
+<div class="genre-filter" role="group" aria-label="按文体筛选">
+  <span class="genre-filter-label">文体筛选</span>
+  <button type="button" class="tag genre-filter-tag is-active" data-genre="" aria-pressed="true">全部</button>
+  {% for g in all_genres %}
+  <button type="button" class="tag genre-filter-tag{% if g in genre_slugs %} tag-{{ genre_slugs[g] }}{% endif %}"
+          data-genre="{{ g }}" aria-pressed="false">{{ g }}</button>
+  {% endfor %}
+</div>
+<p class="genre-filter-status" role="status" aria-live="polite" hidden></p>
+{% endif %}
+
+<table class="shelf">
+  <thead>
+    <tr><th>年份</th><th>书名</th><th>文体</th><th>版本 / 索引</th></tr>
+  </thead>
+  <tbody>
+  {% for w in works %}
+    <tr data-genres="{{ w['genres']|json_list|join('|') }}">
+      <td class="year">{{ w['year'] or '—' }}</td>
+      <td><a class="work-link" href="{{ url_for('work_detail', work_id=w['id']) }}">{{ w['title_zh'] }}</a>
+        {% if w['title_ja'] %}<span class="alt-title">{{ w['title_ja'].split(' ')[0] }}</span>{% endif %}
+      </td>
+      <td class="genres">{% for g in w['genres']|json_list %}<span class="tag{% if g in genre_slugs %} tag-{{ genre_slugs[g] }}{% endif %}" data-genre="{{ g }}" role="button" tabindex="0">{{ g }}</span>{% endfor %}</td>
+      <td class="idx">{% if w['n_indexed'] %}<span class="ok">{{ w['n_indexed'] }} 已索引</span>{% elif w['n_editions'] %}{{ w['n_editions'] }} 个版本待索引{% else %}<span class="dim">尚无文件</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="empty genre-filter-empty" hidden>该文体下暂无作品。</p>
+
+<script>
+(() => {
+  const table = document.querySelector("table.shelf");
+  const rows = table ? [...table.querySelectorAll("tbody tr")] : [];
+  const filterTags = [...document.querySelectorAll(".genre-filter-tag")];
+  const status = document.querySelector(".genre-filter-status");
+  const emptyMsg = document.querySelector(".genre-filter-empty");
+  if (!rows.length || !filterTags.length) return;
+
+  let current = "";
+
+  const apply = (genre) => {
+    current = genre;
+    let shown = 0;
+    rows.forEach((row) => {
+      const genres = (row.dataset.genres || "").split("|");
+      const match = !genre || genres.includes(genre);
+      row.hidden = !match;
+      if (match) shown += 1;
+    });
+    filterTags.forEach((btn) => {
+      const active = (btn.dataset.genre || "") === genre;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (genre) {
+      status.textContent = "文体：" + genre + " · " + shown + " 部作品";
+      status.hidden = false;
+    } else {
+      status.hidden = true;
+    }
+    table.hidden = shown === 0;
+    emptyMsg.hidden = shown !== 0;
+  };
+
+  const toggle = (genre) => apply(genre && genre === current ? "" : genre);
+
+  filterTags.forEach((btn) =>
+    btn.addEventListener("click", () => toggle(btn.dataset.genre || "")));
+
+  const tbody = table.tBodies[0];
+  tbody.addEventListener("click", (event) => {
+    const tag = event.target.closest(".genres .tag[data-genre]");
+    if (tag) toggle(tag.dataset.genre);
+  });
+  tbody.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const tag = event.target.closest(".genres .tag[data-genre]");
+    if (tag) { event.preventDefault(); toggle(tag.dataset.genre); }
+  });
+})();
+</script>
+{% include "_back_to_top.html" %}
+{% endblock %}

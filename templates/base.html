@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}村上春树语料库{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>羊男的图书馆<span class="brand-sub">村上春树研究语料库</span></a>
+  <form class="searchbar" action="{{ url_for('search') }}" method="get">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="跨全部藏书检索：井 / 羊男 / 図書館 / library…" autofocus>
+    <select name="lang">
+      <option value="">全部语言</option>
+      <option value="zh" {% if lang=='zh' %}selected{% endif %}>中文</option>
+      <option value="ja" {% if lang=='ja' %}selected{% endif %}>日文</option>
+      <option value="en" {% if lang=='en' %}selected{% endif %}>英文</option>
+    </select>
+    <button type="submit">检索</button>
+  </form>
+</header>
+<main class="{% block main_class %}{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+  {% if writes_allowed %}私人研究工具 · 入库文本仅限本地个人研究使用{% else %}开源研究工具 ·
+  <a href="https://github.com/jadexuan155229-dot/murakami-corpus">源码</a>{% endif %}
+</footer>
+</body>
+</html>

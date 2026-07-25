@@ -1,0 +1,4 @@
+flask>=3.0
+gunicorn>=21.2        # 生产 WSGI 服务器；本地开发用 python app.py 则不需要
+# 可选：解析 PDF 文本层
+# pymupdf>=1.24

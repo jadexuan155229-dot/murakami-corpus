@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}“{{ q }}” · 检索{% endblock %}
+{% block main_class %}{% if results %}search-page{% endif %}{% endblock %}
+{% block content %}
+{% if q %}
+  <p class="result-summary">“<b>{{ q }}</b>”{% if lang %} · {{ lang|lang_label }}文{% endif %} — {{ results|length }} 部作品中有命中</p>
+
+  {% if results %}
+  <div class="search-results-layout">
+    <aside class="search-work-sidebar">
+      <details class="search-work-nav" open>
+        <summary>命中作品</summary>
+        <nav aria-label="命中作品导航">
+          {% for work in results %}
+          <a class="search-work-link{% if loop.first %} is-active{% endif %}"
+             href="#work-results-{{ work['work_id'] }}"
+             data-work-id="{{ work['work_id'] }}">
+            <span class="search-work-title">{{ work['title_zh'] }}</span>
+            {% if work['year'] %}<span class="search-work-year">{{ work['year'] }}</span>{% endif %}
+            <span class="search-work-count">{{ work['total_hits'] }}</span>
+          </a>
+          {% endfor %}
+        </nav>
+      </details>
+    </aside>
+
+    <div class="search-result-groups">
+      {% for work in results %}
+      <section class="result-work" id="work-results-{{ work['work_id'] }}" data-work-id="{{ work['work_id'] }}">
+        <h2><a href="{{ url_for('work_detail', work_id=work['work_id']) }}">{{ work['title_zh'] }}</a>
+            <span class="year">{{ work['year'] or '' }}</span>
+            <span class="hit-count">{{ work['total_hits'] }} 个命中片段</span></h2>
+        <div class="search-hit-rows" id="work-hits-{{ work['work_id'] }}">
+          {% with chapter_groups=work['chapter_groups'] %}{% include "_search_hits.html" %}{% endwith %}
+        </div>
+        {% if work['is_truncated'] %}
+        <div class="search-expand-controls">
+          <p class="search-truncation-note">当前显示前 {{ work['displayed_hits'] }} 个命中片段，共 {{ work['total_hits'] }} 个。</p>
+          <button class="search-expand-button" type="button"
+                  aria-expanded="false" aria-controls="work-hits-{{ work['work_id'] }}"
+                  data-url="{{ url_for('search_work_hits', work_id=work['work_id'], q=q, lang=lang, genre=genre) }}"
+                  data-expand-label="展开全部 {{ work['total_hits'] }} 条"
+                  data-collapse-label="收起至前 {{ work['displayed_hits'] }} 条">
+            展开全部 {{ work['total_hits'] }} 条
+          </button>
+          <span class="search-expand-error" role="status" aria-live="polite"></span>
+        </div>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+  <script>
+  (() => {
+    const links = [...document.querySelectorAll('.search-work-link')];
+    const sections = [...document.querySelectorAll('.result-work[data-work-id]')];
+    if (!links.length || !sections.length) return;
+
+    const resultGroups = document.querySelector('.search-result-groups');
+    resultGroups.addEventListener('click', (event) => {
+      const button = event.target.closest('.search-chapter-toggle');
+      if (!button || !resultGroups.contains(button)) return;
+      const additional = document.getElementById(button.getAttribute('aria-controls'));
+      if (!additional) return;
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      additional.hidden = expanded;
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.textContent = expanded
+        ? button.dataset.expandLabel
+        : button.dataset.collapseLabel;
+    });
+
+    sections.forEach((section) => {
+      const button = section.querySelector('.search-expand-button');
+      const rows = section.querySelector('.search-hit-rows');
+      if (!button || !rows) return;
+      const initialHtml = rows.innerHTML;
+      const initialRowCount = rows.querySelectorAll('tr').length;
+      const error = section.querySelector('.search-expand-error');
+      let fullHtml = null;
+      let expanded = false;
+
+      button.addEventListener('click', async () => {
+        error.textContent = '';
+        if (expanded) {
+          const extraRows = [...rows.querySelectorAll('tr')].slice(initialRowCount);
+          const viewportContainsHiddenRows = extraRows.some((row) => {
+            // tr 使用 display: contents；以可见单元格判断视口交叠。
+            return [...row.querySelectorAll('td')].some((cell) => {
+              const rect = cell.getBoundingClientRect();
+              return rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+            });
+          });
+          rows.innerHTML = initialHtml;
+          expanded = false;
+          button.textContent = button.dataset.expandLabel;
+          button.setAttribute('aria-expanded', 'false');
+          if (viewportContainsHiddenRows) {
+            requestAnimationFrame(() => section.querySelector('h2').scrollIntoView({
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+              block: 'start'
+            }));
+          }
+          return;
+        }
+
+        if (fullHtml === null) {
+          button.disabled = true;
+          button.textContent = '正在加载…';
+          try {
+            const response = await fetch(button.dataset.url, {
+              headers: { 'X-Requested-With': 'fetch' }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            fullHtml = await response.text();
+          } catch (fetchError) {
+            button.textContent = button.dataset.expandLabel;
+            error.textContent = '加载失败，请稍后重试。';
+            return;
+          } finally {
+            button.disabled = false;
+          }
+        }
+
+        const scrollPosition = window.scrollY;
+        rows.innerHTML = fullHtml;
+        window.scrollTo({ top: scrollPosition, behavior: 'auto' });
+        expanded = true;
+        button.textContent = button.dataset.collapseLabel;
+        button.setAttribute('aria-expanded', 'true');
+      });
+    });
+
+    const activate = (workId) => {
+      links.forEach((link) => {
+        const active = link.dataset.workId === workId;
+        link.classList.toggle('is-active', active);
+        if (active) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    };
+
+    links.forEach((link) => link.addEventListener('click', (event) => {
+      const target = document.querySelector(link.hash);
+      if (!target) return;
+      event.preventDefault();
+      activate(link.dataset.workId);
+      target.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      });
+      history.replaceState(null, '', link.href);
+    }));
+
+    if ('IntersectionObserver' in window) {
+      const visibleHeadings = new Set();
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) visibleHeadings.add(entry.target);
+          else visibleHeadings.delete(entry.target);
+        });
+        const current = [...visibleHeadings]
+          .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+        if (current) activate(current.closest('.result-work').dataset.workId);
+      }, { rootMargin: '-10% 0px -10% 0px' });
+      sections.forEach((section) => observer.observe(section.querySelector('h2')));
+    }
+  })();
+  </script>
+
+  {% include "_back_to_top.html" %}
+  {% endif %}
+
+  {% if not results %}<p class="empty">没有命中。可尝试更短的关键词，或确认相应版本已完成索引。</p>{% endif %}
+{% else %}
+  <p class="empty">输入关键词开始检索。中文与日文支持任意子串（包括二字词），英文按单词匹配。</p>
+{% endif %}
+{% endblock %}
