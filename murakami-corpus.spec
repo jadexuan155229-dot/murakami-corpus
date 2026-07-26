@@ -1,4 +1,4 @@
-# PyInstaller 打包配置。在 Windows 的 PowerShell 里构建：
+# PyInstaller 打包配置（PyInstaller 6.x 语法）。在 Windows 的 PowerShell 里构建：
 #
 #     py -m venv .venv-win
 #     .venv-win\Scripts\pip install -r requirements-desktop.txt
@@ -6,8 +6,6 @@
 #
 # 产物：dist\羊男的图书馆.exe（单文件）
 # 注意：PyInstaller 不能交叉编译，在 WSL/Linux 里构建不出 Windows 程序。
-
-block_cipher = None
 
 a = Analysis(
     ["desktop.py"],
@@ -21,14 +19,14 @@ a = Analysis(
     ],
     hiddenimports=[],
     hookspath=[],
+    hooksconfig={},
     runtime_hooks=[],
-    # 这些是 Flask/pywebview 拖进来但完全用不到的重量级依赖。
-    excludes=["tkinter", "unittest", "pytest", "numpy", "PIL"],
-    cipher=block_cipher,
+    excludes=["tkinter"],   # Flask 拖不进来，但 Python 标准库自带，排掉省体积
     noarchive=False,
+    optimize=0,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
@@ -41,6 +39,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
     runtime_tmpdir=None,
     console=False,        # 不弹黑框命令行窗口
     disable_windowed_traceback=False,
