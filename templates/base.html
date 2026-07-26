@@ -35,9 +35,15 @@
   const btn = document.getElementById('nav-back');
   if (!btn) return;
 
-  // 直接打开的首页 history.length 为 1，没有可回退的地方，不显示按钮。
-  if (history.length > 1) btn.hidden = false;
+  // 是否从本站的另一个页面跳转而来。
+  //
+  // 不能用 history.length：WebView2 初始化时会先停在 about:blank 再跳转到应用
+  // 地址，历史栈里因此凭空多一条，首页也会被判成"可回退"——按下去退进空白页，
+  // 而桌面版没有前进按钮，就卡死了。referrer 只在真的从站内跳转时才有值。
+  const canGoBack = document.referrer.startsWith(location.origin);
+  if (!canGoBack) return;
 
+  btn.hidden = false;
   btn.addEventListener('click', () => history.back());
 
   document.addEventListener('keydown', (event) => {
