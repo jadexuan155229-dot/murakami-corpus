@@ -27,7 +27,13 @@ from werkzeug.utils import secure_filename
 from corpus import db
 from corpus.ingest import PARSERS, parse_file
 
-app = Flask(__name__)
+# 显式给出模板与静态目录：打包成桌面程序后它们在 PyInstaller 的解包目录里，
+# Flask 默认按模块位置推断会找不到。db.RESOURCE_ROOT 两种情形都指向正确的位置。
+app = Flask(
+    __name__,
+    template_folder=str(db.RESOURCE_ROOT / "templates"),
+    static_folder=str(db.RESOURCE_ROOT / "static"),
+)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 app.config["SECRET_KEY"] = (
     os.environ.get("CORPUS_SECRET_KEY")

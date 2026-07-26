@@ -18,19 +18,44 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import uuid
 from pathlib import Path
 from pathlib import PureWindowsPath
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 打包成桌面程序后，代码与模板跑在 PyInstaller 解出的只读临时目录里，
+# 而数据库必须可写——两者从此是不同的位置，下面分开解析。
+FROZEN = getattr(sys, "frozen", False)
 
-# 部署时把 CORPUS_DATA_DIR 指向持久化磁盘的挂载点；本地默认用项目下的 data/。
-DATA_DIR = Path(os.environ.get("CORPUS_DATA_DIR") or PROJECT_ROOT / "data")
+
+def _resource_root() -> Path:
+    """随程序分发的只读资源根目录（templates / static / works_metadata.csv）。"""
+    bundled = getattr(sys, "_MEIPASS", None)  # PyInstaller 的解包目录
+    return Path(bundled) if bundled else Path(__file__).resolve().parent.parent
+
+
+RESOURCE_ROOT = _resource_root()
+
+
+def _default_data_dir() -> Path:
+    """可写数据目录。打包后落到用户目录，否则用项目下的 data/。"""
+    if not FROZEN:
+        return RESOURCE_ROOT / "data"
+    base = (
+        os.environ.get("LOCALAPPDATA")                 # Windows
+        or os.environ.get("XDG_DATA_HOME")             # Linux
+        or Path.home() / ".local" / "share"
+    )
+    return Path(base) / "murakami-corpus"
+
+
+# CORPUS_DATA_DIR 可覆盖：部署时指向持久化磁盘，桌面版可指向已有的语料库。
+DATA_DIR = Path(os.environ.get("CORPUS_DATA_DIR") or _default_data_dir())
 DB_PATH = DATA_DIR / "corpus.db"
 FILES_DIR = DATA_DIR / "files"
 
 # 随代码一起分发的作品元数据（Notion 导出），用于空库首次启动时载入书架。
-WORKS_CSV = PROJECT_ROOT / "works_metadata.csv"
+WORKS_CSV = RESOURCE_ROOT / "works_metadata.csv"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS works (

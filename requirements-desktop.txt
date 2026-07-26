@@ -1,0 +1,8 @@
+# 桌面版（打包 .exe）额外需要的依赖。
+# 必须在 Windows 上、用 Windows 版 Python 安装并构建——PyInstaller 不能交叉编译。
+-r requirements.txt
+
+pywebview>=5.0      # 原生窗口外壳；Windows 上走 WebView2（Win11 自带）
+waitress>=3.0       # WSGI 服务；纯 Python，比 Werkzeug 开发服务器适合长时间开着
+pyinstaller>=6.3    # 打包成单文件 .exe
+pymupdf>=1.24       # PDF 文本层解析；不打算入库 PDF 可以删掉这行（能省约 40MB）

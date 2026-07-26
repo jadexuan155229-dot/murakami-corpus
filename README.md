@@ -38,6 +38,47 @@ python app.py              # 打开 http://127.0.0.1:5731
 epub / txt / pdf，上传后自动解析、分段并建立全文索引，随后即可在顶部检索框
 跨全部藏书检索。
 
+## 桌面版
+
+同一套代码也能装进一个原生窗口——没有地址栏、没有浏览器标签，双击就开。
+[desktop.py](desktop.py) 在后台线程用 waitress 起 Flask，pywebview 开一个系统
+webview 窗口指向它（Windows 走 WebView2，Win11 自带，不用装运行时）。
+
+先跑起来看看：
+
+```bash
+pip install -r requirements-desktop.txt
+python desktop.py
+```
+
+打包成单文件 .exe——**必须在 Windows 的 PowerShell 里做，PyInstaller 不能交叉编译**，
+WSL 里的 Linux venv 打不出 Windows 程序：
+
+```powershell
+py -m venv .venv-win
+.venv-win\Scripts\pip install -r requirements-desktop.txt
+.venv-win\Scripts\pyinstaller murakami-corpus.spec
+```
+
+产物是 `dist\羊男的图书馆.exe`，约 20MB（含 pymupdf 则 60MB 左右）。
+单文件包每次启动要解压，冷启动 2-4 秒；嫌慢可以在
+[murakami-corpus.spec](murakami-corpus.spec) 里改成 onedir 模式。
+
+### 桌面版的数据存哪
+
+打包后代码跑在 PyInstaller 解出的**只读**临时目录里，数据库不能待在那儿，
+所以落到 `%LOCALAPPDATA%\murakami-corpus\`。未打包时（`python desktop.py`）
+仍用项目下的 `data/`。
+
+想让 .exe 直接用你现成的语料库，设环境变量指过去即可：
+
+```powershell
+$env:CORPUS_DATA_DIR = "C:\Users\solus\Downloads\murakami-corpus\data"
+```
+
+桌面版把 `LOCAL_DEV` 置为 True，上传与删除免口令——本地个人工具本该如此。
+公开部署走的是 [wsgi.py](wsgi.py)，那边不受影响，写操作仍需口令。
+
 ## 命令行（批量入库更方便）
 
 ```bash
@@ -98,6 +139,8 @@ python -m pytest tests/          # 或逐个 python tests/test_xxx.py
 ```
 app.py                 # Flask 网页端（浏览 / 上传 / 检索）+ 写操作口令守卫
 wsgi.py                # 生产入口（gunicorn wsgi:app）
+desktop.py             # 桌面版入口（pywebview 原生窗口）
+murakami-corpus.spec   # PyInstaller 打包配置（须在 Windows 上构建）
 corpus/db.py           # 数据模型 + FTS 索引 + CJK 查询构造 + KWIC
 corpus/ingest.py       # epub（标准库解包）/ txt（自动探测编码）/ pdf（可选 pymupdf）
 corpus/cli.py          # 命令行：init / import-notion / add / list / search
