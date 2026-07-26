@@ -256,17 +256,20 @@ def import_works_csv(csv_path: Path | str) -> int:
     return n
 
 
-def bootstrap() -> None:
-    """启动时调用：建表；若是全新的空库，顺带载入书架元数据。
+def bootstrap() -> int:
+    """启动时调用：建表，并把书架元数据同步进来，返回新增的作品数。
 
-    部署到带空白持久磁盘的服务器时，这一步让首次启动就有 69 部作品可浏览。
+    每次启动都跑一遍导入，而不是只在空库时跑：`import_works_csv` 按中文书名去重，
+    所以对已有作品是彻底的 no-op，只有 CSV 里新增的行会被插进来。这样从 Notion
+    重新导出一份含新作品的 CSV 之后，下次启动书架上就能看到——不必手动跑命令行。
+
+    代价是：手动从库里删掉的作品会在下次启动时回来。想永久移除某部作品，
+    需要同时从 works_metadata.csv 里删掉对应行。
     """
     init_db()
-    con = connect()
-    empty = con.execute("SELECT COUNT(*) FROM works").fetchone()[0] == 0
-    con.close()
-    if empty and WORKS_CSV.exists():
-        import_works_csv(WORKS_CSV)
+    if not WORKS_CSV.exists():
+        return 0
+    return import_works_csv(WORKS_CSV)
 
 
 def insert_segments(con: sqlite3.Connection, edition_id: int, segments: list[dict]) -> int:

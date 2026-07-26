@@ -8,6 +8,7 @@
 </head>
 <body>
 <header class="site-header">
+  <button type="button" id="nav-back" class="nav-back" title="返回上一页（Alt+←）" aria-label="返回上一页" hidden>←</button>
   <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>羊男的图书馆<span class="brand-sub">村上春树研究语料库</span></a>
   <form class="searchbar" action="{{ url_for('search') }}" method="get">
     <input type="search" name="q" value="{{ q or '' }}" placeholder="跨全部藏书检索：井 / 羊男 / 図書館 / library…" autofocus>
@@ -27,5 +28,25 @@
   {% if writes_allowed %}私人研究工具 · 入库文本仅限本地个人研究使用{% else %}开源研究工具 ·
   <a href="https://github.com/jadexuan155229-dot/murakami-corpus">源码</a>{% endif %}
 </footer>
+<script>
+(() => {
+  // 桌面版（pywebview）没有浏览器外壳，也就没有后退按钮——但历史栈是在的。
+  // 这里把它接到页面里，网页版和桌面版共用同一套行为。
+  const btn = document.getElementById('nav-back');
+  if (!btn) return;
+
+  // 直接打开的首页 history.length 为 1，没有可回退的地方，不显示按钮。
+  if (history.length > 1) btn.hidden = false;
+
+  btn.addEventListener('click', () => history.back());
+
+  document.addEventListener('keydown', (event) => {
+    if (!event.altKey || event.key !== 'ArrowLeft') return;
+    // preventDefault 抑制 Chromium 自带的 Alt+← 后退，避免和下面这次叠加成退两页。
+    event.preventDefault();
+    history.back();
+  });
+})();
+</script>
 </body>
 </html>

@@ -57,6 +57,17 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   background: var(--night); color: var(--night-ink);
   border-bottom: 3px solid var(--wine);
 }
+.nav-back {
+  flex: 0 0 auto; align-self: center;
+  width: 2.1rem; height: 2.1rem; padding: 0;
+  border: 1px solid var(--night-soft); border-radius: 50%;
+  background: transparent; color: var(--night-dim);
+  font-size: 1rem; line-height: 1; cursor: pointer;
+  transition: color .2s ease, border-color .2s ease, background .2s ease;
+}
+.nav-back:hover {
+  background: var(--wine); border-color: var(--wine); color: #fdf6ee;
+}
 .brand {
   font-size: 1.38rem; letter-spacing: .1em; text-decoration: none;
   color: var(--night-ink); white-space: nowrap;
