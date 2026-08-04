@@ -209,6 +209,41 @@ class ParseEpubTests(unittest.TestCase):
             ["Moss wakes.", "Sunlight arrives.", "A bell rings."],
         )
 
+    def test_fragmented_numeric_chapters_do_not_label_front_matter_as_a_later_chapter(self):
+        opf = """<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+          <manifest>
+            <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+            <item id="book" href="book.xhtml" media-type="application/xhtml+xml"/>
+          </manifest><spine toc="ncx"><itemref idref="book"/></spine>
+        </package>"""
+        ncx = """<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>
+          <navPoint><navLabel><text>1</text></navLabel><content src="book.xhtml#one"/></navPoint>
+          <navPoint><navLabel><text>10</text></navLabel><content src="book.xhtml#ten"/></navPoint>
+        </navMap></ncx>"""
+        book = """<html><head><title>One-file book</title></head><body>
+          <p>Also by this author</p><p>Copyright notice</p>
+          <h1 id="one">1</h1><p>First chapter text.</p>
+          <h1 id="ten">10</h1><p>Tenth chapter text.</p>
+        </body></html>"""
+        path = self.make_epub({
+            "OPS/package.opf": opf,
+            "OPS/toc.ncx": ncx,
+            "OPS/book.xhtml": book,
+        })
+
+        segments = parse_epub(path)
+
+        self.assertEqual(
+            [(s["chapter"], s["content"]) for s in segments],
+            [
+                (None, "Also by this author"),
+                (None, "Copyright notice"),
+                ("1", "First chapter text."),
+                ("10", "10"),
+                ("10", "Tenth chapter text."),
+            ],
+        )
+
     def test_missing_fragment_safely_uses_existing_file_level_toc_fallback(self):
         opf = """<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
           <manifest>
