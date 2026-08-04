@@ -740,7 +740,7 @@ def get_reader_edition(con: sqlite3.Connection, edition_id: int) -> sqlite3.Row 
 
 
 _CHAPTER_TITLE = re.compile(
-    r"^(?:chapter\s+[0-9ivxlcdm]+\b|第\s*[0-9一二三四五六七八九十百千零〇两]+\s*[章話话回節节])",
+    r"^(?:[1-9][0-9]*|chapter\s+[0-9ivxlcdm]+\b|第\s*[0-9一二三四五六七八九十百千零〇两]+\s*[章話话回節节])",
     re.IGNORECASE,
 )
 _PART_TITLE = re.compile(

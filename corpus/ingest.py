@@ -249,8 +249,8 @@ def _toc_block_chapters(
     entries: list[dict[str, str | None]],
     anchors: dict[str, int],
     block_count: int,
-    fallback: str,
-) -> list[str] | None:
+    fallback: str | None,
+) -> list[str | None] | None:
     """把可用目录项投射到正文块；没有可用目标时返回 None。"""
     changes: dict[int, str] = {}
     for entry in entries:
@@ -268,8 +268,11 @@ def _toc_block_chapters(
         first_title = next((entry.get("title") for entry in entries if entry.get("title")), None)
         return [first_title] * block_count if first_title else None
 
-    chapters: list[str] = []
-    chapter = fallback
+    # 同一个 XHTML 可以同时包含版权页、书目和全部正文。若目录的第一个
+    # fragment 在后面，前面的块尚未属于任何目录章节；把它们标为 None，
+    # 而不是误借用该文件中第一个（往往是较晚才出现的）标题。
+    chapter = None if min(changes) > 0 else fallback
+    chapters: list[str | None] = []
     for block_index in range(block_count):
         chapter = changes.get(block_index, chapter)
         chapters.append(chapter)

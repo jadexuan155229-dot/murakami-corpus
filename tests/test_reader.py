@@ -109,6 +109,19 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/edition/1/read/137#segment-137"))
 
+    def test_plain_numeric_label_is_a_chapter(self):
+        self._add_reader_segments([
+            (210, 11, None, "前置内容"),
+            (211, 12, "1", "第一章正文"),
+        ])
+
+        con = db.connect()
+        blocks = db.get_reader_blocks(con, 1)
+        con.close()
+
+        numeric = next(block for block in blocks if block["first_segment_id"] == 211)
+        self.assertEqual(numeric["kind"], "chapter")
+
     def test_read_edition_endpoint_builds_both_routes(self):
         rules = {rule.rule for rule in webapp.app.url_map.iter_rules("read_edition")}
         self.assertEqual(rules, {
