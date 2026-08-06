@@ -9,6 +9,13 @@
     font-weight: 400;
     font-display: swap;
 }
+@font-face {
+    font-family: "JingHua LaoSong";
+    src: url("/static/fonts/JingHuaLaoSong-Regular.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
 
 /* 仅为数字提供本地等宽回退；其余字符继续使用各元素原有字体。 */
 @font-face {
@@ -56,10 +63,12 @@
   --wine-wash: #e6d2c7;
   --pine: #5e7463;
   --ember: #a56548;
+  --vintage-text-font: "Courier Prime", "JingHua LaoSong",
+                       "Noto Serif CJK SC", "Songti SC", serif;
 
   background-color: var(--vintage-paper);
   color: var(--vintage-ink);
-  font-family: "Vintage Digits", var(--serif);
+  font-family: var(--vintage-text-font);
   isolation: isolate;
 }
 
@@ -139,6 +148,12 @@
 .theme-vintage-paper select:focus-visible {
   outline-color: var(--vintage-rust);
   outline-offset: 3px;
+}
+.theme-vintage-paper button,
+.theme-vintage-paper input,
+.theme-vintage-paper select,
+.theme-vintage-paper textarea {
+  font-family: var(--vintage-text-font);
 }
 
 /* 旧印刷横幅 */
@@ -279,7 +294,7 @@
 .theme-vintage-paper table.shelf td { border-bottom-color: #aaa087; }
 .theme-vintage-paper table.shelf tbody tr:hover { background: rgba(143, 166, 170, .14); }
 .theme-vintage-paper .year {
-  font-family: "Vintage Digits", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-family: "Courier Prime", "Courier New", Courier, monospace;
   font-size: .84rem;
   letter-spacing: .025em;
 }
@@ -513,7 +528,7 @@
 .theme-vintage-paper .chapter-nav-bottom { margin: 1.8rem 0 0; }
 .theme-vintage-paper .reader-text { color: #373832; }
 .theme-vintage-paper .reader-text[lang="en"] {
-  font-family: "Vintage Digits", "Courier Prime", "Courier New", Courier, monospace;
+  font-family: "Courier Prime", "Courier New", Courier, monospace;
   font-weight: 400;
   letter-spacing: normal;
 }
