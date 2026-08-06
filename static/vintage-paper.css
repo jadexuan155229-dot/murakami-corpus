@@ -63,7 +63,7 @@
   --wine-wash: #e6d2c7;
   --pine: #5e7463;
   --ember: #a56548;
-  --vintage-text-font: "Courier Prime", "JingHua LaoSong",
+  --vintage-text-font: "JingHua LaoSong", "Courier Prime",
                        "Noto Serif CJK SC", "Songti SC", serif;
 
   background-color: var(--vintage-paper);
@@ -294,7 +294,7 @@
 .theme-vintage-paper table.shelf td { border-bottom-color: #aaa087; }
 .theme-vintage-paper table.shelf tbody tr:hover { background: rgba(143, 166, 170, .14); }
 .theme-vintage-paper .year {
-  font-family: "Courier Prime", "Courier New", Courier, monospace;
+  font-family: var(--vintage-text-font);
   font-size: .84rem;
   letter-spacing: .025em;
 }
@@ -528,7 +528,7 @@
 .theme-vintage-paper .chapter-nav-bottom { margin: 1.8rem 0 0; }
 .theme-vintage-paper .reader-text { color: #373832; }
 .theme-vintage-paper .reader-text[lang="en"] {
-  font-family: "Courier Prime", "Courier New", Courier, monospace;
+  font-family: var(--vintage-text-font);
   font-weight: 400;
   letter-spacing: normal;
 }
