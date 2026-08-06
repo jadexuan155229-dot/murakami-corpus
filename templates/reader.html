@@ -27,7 +27,7 @@
   </aside>
 
   <article class="reader-page">
-    <header class="reader-heading">
+    <header class="reader-heading" style="--chapter-progress-pct: {{ (15 + chapter_progress * 70)|round(2) }}%;">
       <p class="reader-crumbs">
         <a href="{{ url_for('work_detail', work_id=edition['work_id']) }}">← 返回作品页</a>
         <span class="lang-badge lang-{{ edition['language'] }}">{{ edition['language']|lang_label }}</span>
@@ -45,7 +45,7 @@
       {% else %}<span></span>{% endif %}
     </nav>
 
-    <section class="reader-text">
+    <section class="reader-text" lang="{{ edition['language'] }}">
       {% for segment in chapter['segments'] %}
         <p id="segment-{{ segment['id'] }}" class="reader-paragraph{% if segment['id'] == primary_highlight_segment_id %} reader-target segment-highlight-primary{% elif segment['id'] in related_highlight_segment_ids %} segment-highlight-related{% endif %}">{{ render_highlighted_text(term_highlights.get(segment['id']), segment['content']) }}</p>
       {% endfor %}

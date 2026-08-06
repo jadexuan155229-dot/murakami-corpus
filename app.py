@@ -325,10 +325,19 @@ def read_edition(edition_id, segment_id=None):
         for segment in chapter["segments"]
         if segment["id"] in highlighted_segment_ids and search_query.strip()
     }
+    toc = chapter["toc"]
+    if len(toc) <= 1:
+        chapter_progress = 0.5
+    else:
+        current_index = next(
+            index for index, block in enumerate(toc) if block["is_current"]
+        )
+        chapter_progress = current_index / (len(toc) - 1)
     return render_template(
         "reader.html",
         edition=edition,
         chapter=chapter,
+        chapter_progress=chapter_progress,
         primary_highlight_segment_id=primary_highlight_segment_id,
         related_highlight_segment_ids=related_highlight_segment_ids,
         term_highlights=term_highlights,

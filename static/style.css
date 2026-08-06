@@ -2,6 +2,35 @@
    夜蓝页首页尾包住米白旧纸的正文；
    酒红一处点睛（命中关键词与主要动作），墨绿示成，橙红仅作警示。 */
 
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/static/fonts/courier-prime/CourierPrime-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/static/fonts/courier-prime/CourierPrime-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/static/fonts/courier-prime/CourierPrime-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Courier Prime";
+  src: url("/static/fonts/courier-prime/CourierPrime-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   --night: #1f2837;          /* 深夜蓝：页眉、页脚 */
   --night-soft: #2b374b;
@@ -105,6 +134,16 @@ button {
   border: 1px solid var(--wine); background: var(--wine); color: #fdf6ee;
 }
 button:hover { background: var(--wine-deep); border-color: var(--wine-deep); }
+
+/* 主题切换：只作用于页眉中的双主题按钮。 */
+.theme-switcher {
+  flex: 0 0 auto; align-self: center; min-height: 2.1rem; padding: .34em .72em;
+  border: 1px solid var(--night-soft); border-radius: 2px;
+  background: transparent; color: var(--night-ink); box-shadow: none;
+  font-size: .8rem; letter-spacing: .04em; white-space: nowrap;
+}
+.theme-switcher:hover { background: var(--night-soft); border-color: var(--night-dim); color: #fff; }
+.theme-switcher:focus-visible { outline-color: var(--night-ink); }
 
 /* 首页书架 */
 .stats {
@@ -458,6 +497,7 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
   .search-chapter-toggle-cell { padding-left: 0 !important; }
   .search-chapter-toggle { min-height: 2.5rem; padding-left: .75rem; padding-right: .75rem; }
   .site-header { padding: .95rem 1rem .9rem; }
+  .theme-switcher { min-height: 2rem; padding-left: .62em; padding-right: .62em; font-size: .76rem; }
   .searchbar { justify-content: stretch; }
   main { padding-left: 1rem; padding-right: 1rem; padding-top: 1.25rem; }
   .stats span { padding-right: 1.1rem; }
