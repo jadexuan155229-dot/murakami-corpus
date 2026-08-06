@@ -2,6 +2,14 @@
    仅在 .theme-vintage-paper 下覆盖现有视觉。纸张纹理由低成本 CSS 渐变组成，
    没有网络资源、SVG 滤镜或持续动画；装饰层均不接收指针事件。 */
 
+@font-face {
+    font-family: "Hina Mincho";
+    src: url("/static/fonts/HinaMincho-Regular.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+
 /* 仅为数字提供本地等宽回退；其余字符继续使用各元素原有字体。 */
 @font-face {
   font-family: "Vintage Digits";
@@ -508,6 +516,11 @@
   font-family: "Vintage Digits", "Courier Prime", "Courier New", Courier, monospace;
   font-weight: 400;
   letter-spacing: normal;
+}
+.theme-vintage-paper .reader-layout[data-language="ja"] .reader-text,
+.theme-vintage-paper .reader-layout[data-language="ja"] .reader-chapter-title,
+.theme-vintage-paper .reader-layout[data-language="ja"] .toc-item {
+  font-family: "Hina Mincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
 }
 .theme-vintage-paper .reader-paragraph { margin: 1.05em 0; line-height: 1.82; }
 .theme-vintage-paper .reader-target {

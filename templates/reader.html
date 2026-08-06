@@ -12,7 +12,7 @@
 {%- endmacro %}
 {% block title %}{{ current['title'] }} · {{ edition['title_zh'] }}{% endblock %}
 {% block content %}
-<div class="reader-layout">
+<div class="reader-layout" data-language="{{ edition['language'] }}">
   <aside class="reader-sidebar">
     <details class="reader-toc" open>
       <summary>章节目录</summary>
