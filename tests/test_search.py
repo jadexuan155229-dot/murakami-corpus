@@ -87,6 +87,99 @@ class SearchPageTests(unittest.TestCase):
         self.assertNotIn("本章 1 处", body)
         self.assertNotIn('class="search-chapter-toggle"', body)
 
+    def test_pdf_search_uses_dual_page_labels_and_segment_precision(self):
+        con = db.connect()
+        con.execute(
+            "INSERT INTO works (id, title_zh, year) VALUES (99, '页面测试作品', 2026)"
+        )
+        con.executemany(
+            """INSERT INTO editions
+               (id, work_id, language, format, indexed_at) VALUES (?, 99, 'en', ?, ? )""",
+            [
+                (990, "pdf", "2026-01-01T00:00:00+00:00"),
+                (991, "epub", "2026-01-01T00:00:00+00:00"),
+                (992, "txt", "2026-01-01T00:00:00+00:00"),
+            ],
+        )
+        db.insert_segments(
+            con,
+            990,
+            [
+                {
+                    "seq": 1,
+                    "chapter": None,
+                    "page": 107,
+                    "printed_page": "90",
+                    "content": "pagejump printed synthetic text",
+                },
+                {
+                    "seq": 2,
+                    "chapter": None,
+                    "page": 17,
+                    "content": "pagejump unprinted synthetic text",
+                },
+            ],
+        )
+        db.insert_segments(
+            con,
+            991,
+            [{
+                "seq": 1,
+                "chapter": "EPUB Chapter",
+                "page": None,
+                "content": "pagejump epub synthetic text",
+            }],
+        )
+        db.insert_segments(
+            con,
+            992,
+            [{
+                "seq": 1,
+                "chapter": "TXT Heading",
+                "page": None,
+                "content": "pagejump txt synthetic text",
+            }],
+        )
+        pdf_rows = con.execute(
+            "SELECT id, page FROM segments WHERE edition_id=990 ORDER BY seq"
+        ).fetchall()
+        con.commit()
+        con.close()
+
+        body = self.client.get("/search?q=pagejump").get_data(as_text=True)
+        pdf_segment_ids = ",".join(str(row["id"]) for row in pdf_rows)
+
+        self.assertIn("p.90 · PDF 107", body)
+        self.assertIn("PDF 17", body)
+        self.assertNotIn("p.107", body)
+        for row in pdf_rows:
+            segment_id = row["id"]
+            self.assertIn(
+                f"/edition/990/read/{segment_id}?highlights={pdf_segment_ids}"
+                f"&amp;search_q=pagejump#segment-{segment_id}",
+                body,
+            )
+        self.assertNotIn("#pdf-page-", body)
+        self.assertRegex(
+            body,
+            r'<td class="kwic-loc">\s*<span class="lang-badge lang-en">英</span>\s*EPUB Chapter\s*</td>',
+        )
+        self.assertRegex(
+            body,
+            r'<td class="kwic-loc">\s*<span class="lang-badge lang-en">英</span>\s*TXT Heading\s*</td>',
+        )
+
+        reader = self.client.get(
+            f"/edition/990/read/{pdf_rows[0]['id']}?highlight=1&search_q=pagejump"
+        ).get_data(as_text=True)
+        self.assertIn(f'id="pdf-page-107"', reader)
+        self.assertIn(
+            f'id="segment-{pdf_rows[0]["id"]}" '
+            'class="reader-paragraph reader-target segment-highlight-primary"',
+            reader,
+        )
+        self.assertIn('class="search-term-highlight">pagejump</mark>', reader)
+
     def test_group_hits_by_chapter_separates_editions_and_sorts_segments(self):
         def row(edition_id, chapter, seq, segment_id):
             return {
