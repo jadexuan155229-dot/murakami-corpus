@@ -5,8 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}村上春树语料库{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='vintage-paper.css') }}">
+<script src="{{ url_for('static', filename='theme-switcher.js') }}" defer></script>
 </head>
-<body>
+<body class="theme-vintage-paper">
+<script>
+(() => {
+  const key = "murakami-corpus-theme";
+  let theme = "vintage";
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved === "classic" || saved === "vintage") theme = saved;
+  } catch (_) {}
+  document.body.classList.toggle("theme-vintage-paper", theme === "vintage");
+})();
+</script>
 <header class="site-header">
   <button type="button" id="nav-back" class="nav-back" title="返回上一页（Alt+←）" aria-label="返回上一页" hidden>←</button>
   <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>羊男的图书馆<span class="brand-sub">村上春树研究语料库</span></a>
@@ -20,6 +33,8 @@
     </select>
     <button type="submit">检索</button>
   </form>
+  <button type="button" class="theme-switcher" data-theme-switcher
+          title="切换到原版夜色主题" aria-label="切换到原版夜色主题" aria-pressed="true">原版夜色</button>
 </header>
 <main class="{% block main_class %}{% endblock %}">
 {% block content %}{% endblock %}
