@@ -29,9 +29,9 @@
       <section class="result-work" id="work-results-{{ work['work_id'] }}" data-work-id="{{ work['work_id'] }}">
         <h2><a href="{{ url_for('work_detail', work_id=work['work_id']) }}">{{ work['title_zh'] }}</a>
             <span class="year">{{ work['year'] or '' }}</span>
-            <span class="hit-count">{{ work['total_hits'] }} 个命中片段</span></h2>
+            <span class="hit-count">{{ work['total_hits'] }} 个命中片段{% if work['total_hit_editions'] > 1 %} · {{ work['total_hit_editions'] }} 个命中版本{% endif %}</span></h2>
         <div class="search-hit-rows" id="work-hits-{{ work['work_id'] }}">
-          {% with chapter_groups=work['chapter_groups'] %}{% include "_search_hits.html" %}{% endwith %}
+          {% with edition_groups=work['edition_groups'] %}{% include "_search_hits.html" %}{% endwith %}
         </div>
         {% if work['is_truncated'] %}
         <div class="search-expand-controls">

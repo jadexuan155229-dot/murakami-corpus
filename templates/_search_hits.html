@@ -24,6 +24,7 @@
     <td class="kwic-right">{{ context['right'] }}</td>
   </tr>
 {%- endmacro %}
+{% macro render_hit_table(chapter_groups) -%}
 <table class="kwic">
 {% for group in chapter_groups %}
   <tbody class="search-chapter-group" data-chapter-key="{{ group['chapter_key'] }}">
@@ -63,3 +64,30 @@
   {% endif %}
 {% endfor %}
 </table>
+{%- endmacro %}
+
+{% for language_group in edition_groups %}
+  {% if language_group['is_multi_edition'] %}
+  <section class="search-language-group">
+    <div class="search-language-heading">
+      <h3>{{ language_group['language']|lang_label }}文</h3>
+      <nav class="search-edition-nav" aria-label="{{ language_group['language']|lang_label }}文命中版本">
+        {% for edition in language_group['editions'] %}
+        <a href="#{{ edition['anchor'] }}">{{ edition['format']|upper }}{% if edition['format'] == 'pdf' and edition['has_pages'] %} · 带页码{% endif %} · {{ edition['hit_count'] }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+    {% for edition in language_group['editions'] %}
+    <section class="search-edition-group" id="{{ edition['anchor'] }}">
+      <header class="search-edition-heading">
+        <span class="search-edition-title">{{ edition['language']|lang_label }} · {{ edition['format']|upper }}{% if edition['format'] == 'pdf' and edition['has_pages'] %} · 带页码{% endif %}</span>
+        {% if edition['filename'] %}<span class="search-edition-filename" title="{{ edition['filename'] }}">{{ edition['filename'] }}</span>{% endif %}
+      </header>
+      {{ render_hit_table(edition['chapter_groups']) }}
+    </section>
+    {% endfor %}
+  </section>
+  {% else %}
+    {{ render_hit_table(language_group['editions'][0]['chapter_groups']) }}
+  {% endif %}
+{% endfor %}

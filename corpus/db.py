@@ -925,7 +925,7 @@ def search(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.format,
+               e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
         FROM segments_fts f
         JOIN segments s ON s.id = f.segment_id
@@ -970,27 +970,36 @@ def search_grouped(
         filters += " AND w.genres LIKE ?"
         params.append(f'%"{genre}"%')
     sql = f"""
-        WITH ranked AS (
+        WITH matches AS (
             SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-                   e.id AS edition_id, e.language, e.format,
-                   w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
-                   w.year, w.genres,
-                   COUNT(*) OVER (PARTITION BY w.id) AS total_hits,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY w.id
-                       ORDER BY e.language, s.seq
-                   ) AS hit_rank
+                   e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
+                   w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
             FROM segments_fts f
             JOIN segments s ON s.id = f.segment_id
             JOIN editions e ON e.id = s.edition_id
             JOIN works w    ON w.id = e.work_id
             WHERE segments_fts MATCH ?{filters}
+        ),
+        edition_counts AS (
+            SELECT work_id, COUNT(DISTINCT edition_id) AS total_hit_editions
+            FROM matches
+            GROUP BY work_id
+        ),
+        ranked AS (
+            SELECT matches.*,
+                   COUNT(*) OVER (PARTITION BY work_id) AS total_hits,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY work_id
+                       ORDER BY language, seq
+                   ) AS hit_rank
+            FROM matches
         )
         SELECT segment_id, content, chapter, page, printed_page, seq,
-               edition_id, language, format,
+               edition_id, language, format, filename, has_pages,
                work_id, title_zh, title_ja, title_en, year, genres,
-               total_hits
+               total_hits, edition_counts.total_hit_editions
         FROM ranked
+        JOIN edition_counts USING (work_id)
         WHERE hit_rank <= ?
         ORDER BY year, language, seq
     """
@@ -1011,7 +1020,7 @@ def search_work(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.format,
+               e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
                w.year, w.genres
         FROM segments_fts f

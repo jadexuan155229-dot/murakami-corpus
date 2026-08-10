@@ -137,6 +137,7 @@ def search():
                     "year": r["year"],
                     "work_id": r["work_id"],
                     "total_hits": r["total_hits"],
+                    "total_hit_editions": r["total_hit_editions"],
                     "displayed_hits": 0,
                     "is_truncated": False,
                     "_rows": [],
@@ -146,7 +147,7 @@ def search():
             g["_rows"].append(r)
         for g in grouped.values():
             g["is_truncated"] = g["displayed_hits"] < g["total_hits"]
-            g["chapter_groups"] = group_search_hits(g.pop("_rows"), q)
+            g["edition_groups"] = group_search_hits_by_edition(g.pop("_rows"), q)
         results = list(grouped.values())
     return render_template("search.html", q=q, lang=lang, genre=genre, results=results)
 
@@ -276,6 +277,47 @@ def group_search_hits(rows, query):
     return groups
 
 
+def group_search_hits_by_edition(rows, query):
+    """按 language → edition 组织已有的章节／PDF 页结果。
+
+    章节和 PDF 页的细分仍由 ``group_search_hits`` 负责；这里仅避免同语言的
+    多个 edition 在展示中彼此穿插。
+    """
+    languages: dict[str, dict] = {}
+    for row in rows:
+        language = row["language"]
+        language_group = languages.setdefault(
+            language,
+            {"language": language, "editions": [], "_by_id": {}},
+        )
+        edition_id = row["edition_id"]
+        edition = language_group["_by_id"].get(edition_id)
+        if edition is None:
+            keys = row.keys()
+            edition = {
+                "edition_id": edition_id,
+                "language": language,
+                "format": row["format"],
+                "filename": row["filename"] if "filename" in keys else None,
+                "has_pages": bool(row["has_pages"]) if "has_pages" in keys else False,
+                "hit_count": 0,
+                "_rows": [],
+            }
+            language_group["_by_id"][edition_id] = edition
+            language_group["editions"].append(edition)
+        edition["hit_count"] += 1
+        edition["_rows"].append(row)
+
+    result = list(languages.values())
+    for language_group in result:
+        language_group["is_multi_edition"] = len(language_group["editions"]) > 1
+        for edition in language_group["editions"]:
+            edition["chapter_groups"] = group_search_hits(edition.pop("_rows"), query)
+            edition["anchor"] = f"edition-results-{edition['edition_id']}"
+        language_group.pop("_by_id")
+    return result
+
+
 @app.route("/search/work/<int:work_id>")
 def search_work_hits(work_id):
     q = request.args.get("q", "").strip()
@@ -290,8 +332,8 @@ def search_work_hits(work_id):
         rows = db.search_work(con, q, work_id, language=lang, genre=genre)
     finally:
         con.close()
-    chapter_groups = group_search_hits(rows, q)
-    return render_template("_search_hits.html", chapter_groups=chapter_groups)
+    edition_groups = group_search_hits_by_edition(rows, q)
+    return render_template("_search_hits.html", edition_groups=edition_groups)
 
 
 @app.route("/work/<int:work_id>")

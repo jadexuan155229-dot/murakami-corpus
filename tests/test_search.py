@@ -454,6 +454,91 @@ class SearchPageTests(unittest.TestCase):
             r'/edition/120/read/1202\?highlights=1201,1202,1203&amp;search_q=needle#segment-1202',
         )
 
+    def test_same_language_editions_are_separated_with_metadata_and_navigation(self):
+        con = db.connect()
+        con.execute(
+            "UPDATE editions SET filename=? WHERE id=120", ("kafka_zh.epub",)
+        )
+        con.execute(
+            """INSERT INTO editions
+               (id, work_id, language, format, filename, has_pages, indexed_at)
+               VALUES (122, 12, 'zh', 'pdf', 'kafka_zh_printed.pdf', 1, ?)""",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        db.insert_segments(
+            con,
+            120,
+            [{
+                "seq": 2,
+                "chapter": "EPUB Chapter",
+                "page": None,
+                "content": "editionneedle epub text",
+            }],
+        )
+        db.insert_segments(
+            con,
+            122,
+            [
+                {
+                    "seq": 1,
+                    "chapter": None,
+                    "page": 20,
+                    "printed_page": "3",
+                    "content": "editionneedle pdf first page",
+                },
+                {
+                    "seq": 2,
+                    "chapter": None,
+                    "page": 21,
+                    "printed_page": "4",
+                    "content": "editionneedle pdf second page",
+                },
+            ],
+        )
+        epub_segment_id = con.execute(
+            "SELECT id FROM segments WHERE edition_id=120 AND seq=2"
+        ).fetchone()["id"]
+        pdf_segment_ids = [
+            row["id"]
+            for row in con.execute(
+                "SELECT id FROM segments WHERE edition_id=122 ORDER BY seq"
+            )
+        ]
+        con.commit()
+        con.close()
+
+        body = self.client.get("/search?q=editionneedle").get_data(as_text=True)
+
+        self.assertIn("3 个命中片段 · 2 个命中版本", body)
+        self.assertIn('class="search-language-group"', body)
+        self.assertIn('<h3>中文</h3>', body)
+        self.assertIn('aria-label="中文命中版本"', body)
+        self.assertIn('href="#edition-results-120">EPUB · 1</a>', body)
+        self.assertIn('href="#edition-results-122">PDF · 带页码 · 2</a>', body)
+        self.assertIn('id="edition-results-120"', body)
+        self.assertIn('id="edition-results-122"', body)
+        self.assertIn("中 · EPUB", body)
+        self.assertIn("中 · PDF · 带页码", body)
+        self.assertIn("kafka_zh.epub", body)
+        self.assertIn("kafka_zh_printed.pdf", body)
+        self.assertIn("p.3 · PDF 20", body)
+        self.assertIn("p.4 · PDF 21", body)
+
+        epub_block = re.search(
+            r'<section class="search-edition-group" id="edition-results-120">(?P<body>.*?)</section>',
+            body,
+            re.DOTALL,
+        ).group("body")
+        pdf_block = re.search(
+            r'<section class="search-edition-group" id="edition-results-122">(?P<body>.*?)</section>',
+            body,
+            re.DOTALL,
+        ).group("body")
+        self.assertIn(f'data-segment-id="{epub_segment_id}"', epub_block)
+        self.assertNotIn(f'data-segment-id="{epub_segment_id}"', pdf_block)
+        for segment_id in pdf_segment_ids:
+            self.assertIn(f'data-segment-id="{segment_id}"', pdf_block)
+
     def test_initial_and_work_links_url_encode_the_original_query(self):
         con = db.connect()
         db.insert_segments(

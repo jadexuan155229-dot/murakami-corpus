@@ -270,6 +270,49 @@ table.shelf tbody tr:hover { background: var(--wash); }
 }
 .result-work h2 .year { margin-left: .6em; }
 .hit-count { float: right; color: var(--ink-soft); font-size: .85rem; }
+.search-language-group { margin: 1.15rem 0 1.4rem; }
+.search-language-heading {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: .45rem .8rem;
+  margin: 0 0 .55rem; padding-bottom: .3rem; border-bottom: 1px solid var(--rule);
+}
+.search-language-heading h3 {
+  margin: 0; font-size: .9rem; font-weight: normal; color: var(--ink-soft);
+  letter-spacing: .08em;
+}
+.search-edition-nav { display: flex; flex-wrap: wrap; gap: .35rem; }
+.search-edition-nav a {
+  padding: .08rem .45rem; border: 1px solid var(--rule); border-radius: 3px;
+  color: var(--ink-soft); font-size: .76rem; line-height: 1.6; text-decoration: none;
+}
+.search-edition-nav a:hover { border-color: var(--wine); color: var(--wine-deep); }
+.search-edition-group { margin: .85rem 0 1.2rem; scroll-margin-top: 5rem; }
+.search-edition-heading {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .65rem;
+  margin-bottom: .3rem;
+}
+.search-edition-title {
+  color: var(--ink); font-size: 1.04rem; font-weight: 600; letter-spacing: .06em;
+}
+.search-edition-filename {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink-soft); font-size: .72rem; opacity: .65;
+}
+.search-edition-group:target .search-edition-heading {
+  animation: search-edition-target-marker 1.1s ease-out both;
+}
+@keyframes search-edition-target-marker {
+  0% {
+    background: color-mix(in srgb, var(--wine-wash) 65%, transparent);
+    box-shadow: inset 2px 0 0 var(--wine);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 2px 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-edition-group:target .search-edition-heading { animation: none; }
+}
 .search-expand-controls {
   display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .8rem;
   margin-top: .65rem;
