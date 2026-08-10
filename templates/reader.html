@@ -47,6 +47,9 @@
 
     <section class="reader-text">
       {% for segment in chapter['segments'] %}
+        {% if edition['format'] == 'pdf' and segment['page'] is not none %}
+        <div class="reader-page-marker">{% if segment['printed_page'] %}p.{{ segment['printed_page'] }} · {% endif %}PDF {{ segment['page'] }}</div>
+        {% endif %}
         <p id="segment-{{ segment['id'] }}" class="reader-paragraph{% if segment['id'] == primary_highlight_segment_id %} reader-target segment-highlight-primary{% elif segment['id'] in related_highlight_segment_ids %} segment-highlight-related{% endif %}">{{ render_highlighted_text(term_highlights.get(segment['id']), segment['content']) }}</p>
       {% endfor %}
     </section>

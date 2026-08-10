@@ -25,6 +25,7 @@ CREATE TABLE segments (
     seq         INTEGER NOT NULL,        -- 版本内顺序
     chapter     TEXT,                    -- 章节标题（epub 的 spine 条目 / txt 的推断章节）
     page        INTEGER,                 -- PDF 页码（其他格式为 NULL）
+    printed_page TEXT,                   -- 书籍印刷页码（PDF 文件页与之独立）
     content     TEXT NOT NULL            -- 原文
 );
 CREATE INDEX idx_segments_edition ON segments(edition_id, seq);

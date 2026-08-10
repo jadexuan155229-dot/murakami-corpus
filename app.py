@@ -175,6 +175,10 @@ def group_hits_by_chapter(rows, query):
             "language": row["language"],
             "chapter": chapter,
             "page": row["page"],
+            "printed_page": (
+                row["printed_page"] if "printed_page" in row.keys() else None
+            ),
+            "format": row["format"] if "format" in row.keys() else None,
             "seq": row["seq"],
             "segment_id": row["segment_id"],
             "contexts": db.kwic(row["content"], query),

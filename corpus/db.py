@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS segments (
     seq         INTEGER NOT NULL,        -- 版本内顺序
     chapter     TEXT,                    -- 章节标题（epub 的 spine 条目 / txt 的推断章节）
     page        INTEGER,                 -- PDF 页码（其他格式为 NULL）
+    printed_page TEXT,                   -- 书籍印刷页码（PDF 文件页与之独立）
     content     TEXT NOT NULL            -- 原文
 );
 CREATE INDEX IF NOT EXISTS idx_segments_edition ON segments(edition_id, seq);
@@ -207,6 +208,11 @@ def connect() -> sqlite3.Connection:
 def init_db() -> None:
     con = connect()
     con.executescript(SCHEMA)
+    segment_columns = {
+        row["name"] for row in con.execute("PRAGMA table_info(segments)")
+    }
+    if "printed_page" not in segment_columns:
+        con.execute("ALTER TABLE segments ADD COLUMN printed_page TEXT")
     con.commit()
     con.close()
 
@@ -273,13 +279,22 @@ def bootstrap() -> int:
 
 
 def insert_segments(con: sqlite3.Connection, edition_id: int, segments: list[dict]) -> int:
-    """写入片段并建立 FTS 索引。segments: [{seq, chapter, page, content}]"""
+    """写入片段并建立 FTS 索引。segments: [{seq, chapter, page, printed_page, content}]"""
     cur = con.cursor()
     n = 0
     for seg in segments:
         cur.execute(
-            "INSERT INTO segments (edition_id, seq, chapter, page, content) VALUES (?,?,?,?,?)",
-            (edition_id, seg["seq"], seg.get("chapter"), seg.get("page"), seg["content"]),
+            """INSERT INTO segments
+               (edition_id, seq, chapter, page, printed_page, content)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                edition_id,
+                seg["seq"],
+                seg.get("chapter"),
+                seg.get("page"),
+                seg.get("printed_page"),
+                seg["content"],
+            ),
         )
         cur.execute(
             "INSERT INTO segments_fts (body, segment_id) VALUES (?,?)",
@@ -909,7 +924,7 @@ def search(
     if not fts_q:
         return []
     sql = """
-        SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.seq,
+        SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
                e.id AS edition_id, e.language, e.format,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
         FROM segments_fts f
@@ -956,7 +971,7 @@ def search_grouped(
         params.append(f'%"{genre}"%')
     sql = f"""
         WITH ranked AS (
-            SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.seq,
+            SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
                    e.id AS edition_id, e.language, e.format,
                    w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
                    w.year, w.genres,
@@ -971,7 +986,7 @@ def search_grouped(
             JOIN works w    ON w.id = e.work_id
             WHERE segments_fts MATCH ?{filters}
         )
-        SELECT segment_id, content, chapter, page, seq,
+        SELECT segment_id, content, chapter, page, printed_page, seq,
                edition_id, language, format,
                work_id, title_zh, title_ja, title_en, year, genres,
                total_hits
@@ -995,7 +1010,7 @@ def search_work(
     if not fts_q:
         return []
     sql = """
-        SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.seq,
+        SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
                e.id AS edition_id, e.language, e.format,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
                w.year, w.genres

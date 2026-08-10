@@ -412,6 +412,11 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
 .chapter-nav a:hover { color: var(--wine-deep); }
 .chapter-nav a:last-child { text-align: right; }
 .reader-text { overflow-wrap: anywhere; }
+.reader-page-marker {
+  margin: 1.7rem 0 -.55rem;
+  color: var(--ink-soft); font-size: .76rem; letter-spacing: .04em;
+}
+.reader-page-marker:first-child { margin-top: 0; }
 .reader-paragraph { margin: 1.15em 0; line-height: 2; scroll-margin-top: 1.25rem; }
 .reader-target {
   background: var(--wine-wash); border-left: 3px solid var(--wine);

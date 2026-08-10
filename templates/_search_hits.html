@@ -3,7 +3,7 @@
   <tr class="search-segment-hit" data-segment-id="{{ hit['segment_id'] }}">
     <td class="kwic-loc">
       <span class="lang-badge lang-{{ hit['language'] }}">{{ hit['language']|lang_label }}</span>
-      {% if hit['page'] %}p.{{ hit['page'] }}{% elif hit['chapter'] %}{{ hit['chapter']|truncate(12, true, '…') }}{% endif %}
+      {% if hit['format'] == 'pdf' and hit['page'] is not none %}{% if hit['printed_page'] %}p.{{ hit['printed_page'] }} · {% endif %}PDF {{ hit['page'] }}{% elif hit['chapter'] %}{{ hit['chapter']|truncate(12, true, '…') }}{% endif %}
     </td>
     <td class="kwic-left">{{ context['left'] }}</td>
     <td class="kwic-match"><a href="{% if group['is_multi_hit'] %}{{ url_for('read_edition', edition_id=hit['edition_id'], segment_id=hit['segment_id'], highlights=group['highlights_param'], search_q=group['search_query'], _anchor='segment-' ~ hit['segment_id']) }}{% else %}{{ url_for('read_edition', edition_id=hit['edition_id'], segment_id=hit['segment_id'], highlight=1, search_q=group['search_query'], _anchor='segment-' ~ hit['segment_id']) }}{% endif %}">{{ context['match'] }}</a></td>
