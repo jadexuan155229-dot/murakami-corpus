@@ -146,7 +146,7 @@ def search():
             g["_rows"].append(r)
         for g in grouped.values():
             g["is_truncated"] = g["displayed_hits"] < g["total_hits"]
-            g["chapter_groups"] = group_hits_by_chapter(g.pop("_rows"), q)
+            g["chapter_groups"] = group_search_hits(g.pop("_rows"), q)
         results = list(grouped.values())
     return render_template("search.html", q=q, lang=lang, genre=genre, results=results)
 
@@ -167,6 +167,7 @@ def group_hits_by_chapter(rows, query):
                 "language": row["language"],
                 "chapter": chapter,
                 "chapter_key": f"edition-{row['edition_id']}-chapter-{digest}",
+                "group_type": "chapter",
                 "search_query": query[:MAX_DISPLAY_QUERY_LENGTH],
                 "all_hits": [],
             }
@@ -200,6 +201,81 @@ def group_hits_by_chapter(rows, query):
     return chapter_groups
 
 
+def group_pdf_hits_by_page(rows, query):
+    """按 edition + PDF 内部页整理匹配 segment，并保留搜索结果顺序。"""
+    grouped: dict[tuple[int, int | None], dict] = {}
+    for row in rows:
+        page = row["page"]
+        group_key = (row["edition_id"], page)
+        group = grouped.get(group_key)
+        if group is None:
+            digest = hashlib.sha256(
+                f"{row['edition_id']}\0{page!r}".encode("utf-8")
+            ).hexdigest()[:16]
+            group = grouped[group_key] = {
+                "edition_id": row["edition_id"],
+                "language": row["language"],
+                "chapter": None,
+                "chapter_key": f"edition-{row['edition_id']}-page-{digest}",
+                "group_type": "page",
+                "search_query": query[:MAX_DISPLAY_QUERY_LENGTH],
+                "all_hits": [],
+            }
+        group["all_hits"].append({
+            "edition_id": row["edition_id"],
+            "language": row["language"],
+            "chapter": None,
+            "page": page,
+            "printed_page": (
+                row["printed_page"] if "printed_page" in row.keys() else None
+            ),
+            "format": row["format"],
+            "seq": row["seq"],
+            "segment_id": row["segment_id"],
+            "contexts": db.kwic(row["content"], query),
+        })
+
+    page_groups = list(grouped.values())
+    for group in page_groups:
+        # rows arrive in the database search order; do not recompute relevance.
+        group["primary_hit"] = group["all_hits"][0]
+        group["additional_hits"] = group["all_hits"][1:]
+        group["chapter_hit_count"] = len(group["all_hits"])
+        group["all_segment_ids"] = list(dict.fromkeys(
+            hit["segment_id"] for hit in group["all_hits"]
+        ))
+        group["highlights_param"] = ",".join(
+            str(segment_id) for segment_id in group["all_segment_ids"][:200]
+        )
+        group["all_context_hits"] = [
+            {"hit": hit, "context": context}
+            for hit in group["all_hits"]
+            for context in hit["contexts"]
+        ]
+        group["page_context_count"] = len(group["all_context_hits"])
+        group["primary_context_hit"] = group["all_context_hits"][0]
+        group["additional_context_hits"] = group["all_context_hits"][1:]
+        group["is_multi_hit"] = group["page_context_count"] > 1
+    return page_groups
+
+
+def group_search_hits(rows, query):
+    """PDF 按页分组；EPUB/TXT 继续按章节分组。"""
+    pdf_rows = [row for row in rows if row["format"] == "pdf"]
+    chapter_rows = [row for row in rows if row["format"] != "pdf"]
+    groups = group_hits_by_chapter(chapter_rows, query)
+    groups.extend(group_pdf_hits_by_page(pdf_rows, query))
+    result_order = {
+        row["segment_id"]: index for index, row in enumerate(rows)
+    }
+    groups.sort(
+        key=lambda group: min(
+            result_order[hit["segment_id"]] for hit in group["all_hits"]
+        )
+    )
+    return groups
+
+
 @app.route("/search/work/<int:work_id>")
 def search_work_hits(work_id):
     q = request.args.get("q", "").strip()
@@ -214,7 +290,7 @@ def search_work_hits(work_id):
         rows = db.search_work(con, q, work_id, language=lang, genre=genre)
     finally:
         con.close()
-    chapter_groups = group_hits_by_chapter(rows, q)
+    chapter_groups = group_search_hits(rows, q)
     return render_template("_search_hits.html", chapter_groups=chapter_groups)
 
 

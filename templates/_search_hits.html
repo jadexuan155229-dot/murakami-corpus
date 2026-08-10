@@ -11,23 +11,52 @@
   </tr>
   {% endfor %}
 {%- endmacro %}
+{% macro render_context_hit(context_hit, group) -%}
+  {% set hit = context_hit['hit'] %}
+  {% set context = context_hit['context'] %}
+  <tr class="search-segment-hit" data-segment-id="{{ hit['segment_id'] }}">
+    <td class="kwic-loc">
+      <span class="lang-badge lang-{{ hit['language'] }}">{{ hit['language']|lang_label }}</span>
+      {% if hit['printed_page'] %}p.{{ hit['printed_page'] }} · {% endif %}PDF {{ hit['page'] }}
+    </td>
+    <td class="kwic-left">{{ context['left'] }}</td>
+    <td class="kwic-match"><a href="{% if group['is_multi_hit'] %}{{ url_for('read_edition', edition_id=hit['edition_id'], segment_id=hit['segment_id'], highlights=group['highlights_param'], search_q=group['search_query'], _anchor='segment-' ~ hit['segment_id']) }}{% else %}{{ url_for('read_edition', edition_id=hit['edition_id'], segment_id=hit['segment_id'], highlight=1, search_q=group['search_query'], _anchor='segment-' ~ hit['segment_id']) }}{% endif %}">{{ context['match'] }}</a></td>
+    <td class="kwic-right">{{ context['right'] }}</td>
+  </tr>
+{%- endmacro %}
 <table class="kwic">
 {% for group in chapter_groups %}
   <tbody class="search-chapter-group" data-chapter-key="{{ group['chapter_key'] }}">
-    {{ render_segment_hit(group['primary_hit'], group) }}
+    {% if group['group_type'] == 'page' %}
+      {{ render_context_hit(group['primary_context_hit'], group) }}
+    {% else %}
+      {{ render_segment_hit(group['primary_hit'], group) }}
+    {% endif %}
   </tbody>
   {% if group['is_multi_hit'] %}
   <tbody class="search-chapter-additional" id="additional-{{ group['chapter_key'] }}" hidden>
-    {% for hit in group['additional_hits'] %}{{ render_segment_hit(hit, group) }}{% endfor %}
+    {% if group['group_type'] == 'page' %}
+      {% for context_hit in group['additional_context_hits'] %}{{ render_context_hit(context_hit, group) }}{% endfor %}
+    {% else %}
+      {% for hit in group['additional_hits'] %}{{ render_segment_hit(hit, group) }}{% endfor %}
+    {% endif %}
   </tbody>
   <tbody class="search-chapter-controls">
     <tr class="search-chapter-toggle-row">
       <td class="search-chapter-toggle-cell" colspan="4">
+        {% if group['group_type'] == 'page' %}
+          <span class="search-page-hit-count">本页 {{ group['page_context_count'] }} 条</span>
+          {% set expand_label = '展开本页' %}
+          {% set collapse_label = '收起本页' %}
+        {% else %}
+          {% set expand_label = '本章 ' ~ group['chapter_hit_count'] ~ ' 处' %}
+          {% set collapse_label = '收起本章' %}
+        {% endif %}
         <button class="search-chapter-toggle" type="button"
                 aria-expanded="false"
                 aria-controls="additional-{{ group['chapter_key'] }}"
-                data-expand-label="本章 {{ group['chapter_hit_count'] }} 处"
-                data-collapse-label="收起本章">本章 {{ group['chapter_hit_count'] }} 处</button>
+                data-expand-label="{{ expand_label }}"
+                data-collapse-label="{{ collapse_label }}">{{ expand_label }}</button>
       </td>
     </tr>
   </tbody>
