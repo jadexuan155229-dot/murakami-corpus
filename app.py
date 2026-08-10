@@ -460,4 +460,4 @@ if __name__ == "__main__":
     # 因此 LOCAL_DEV 保持 False，写操作必须凭 CORPUS_ADMIN_PASSWORD。
     LOCAL_DEV = True
     db.bootstrap()
-    app.run(host="127.0.0.1", port=5731, debug=True)
+    app.run(host="0.0.0.0", port=5731, debug=True)
