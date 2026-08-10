@@ -88,6 +88,26 @@ class ReaderTests(unittest.TestCase):
         con.commit()
         con.close()
 
+    def _seed_pdf_reader_edition(self):
+        con = db.connect()
+        con.execute(
+            """INSERT INTO editions
+               (id, work_id, language, format, indexed_at)
+               VALUES (6, 1, 'zh', 'pdf', '2026-01-02')"""
+        )
+        con.executemany(
+            """INSERT INTO segments
+               (id, edition_id, seq, chapter, page, printed_page, content)
+               VALUES (?, 6, ?, NULL, ?, ?, ?)""",
+            [
+                (601, 1, 1, None, "Synthetic PDF front page."),
+                (618, 2, 18, "1", "Synthetic PDF printed page one."),
+                (619, 3, 19, "2", "Synthetic PDF printed page two."),
+            ],
+        )
+        con.commit()
+        con.close()
+
     def _add_reader_segments(self, rows):
         con = db.connect()
         con.executemany(
@@ -179,6 +199,36 @@ class ReaderTests(unittest.TestCase):
         )
         self.assertEqual(body.count("reader-paragraph reader-target"), 1)
         self.assertNotIn("segment-highlight-related", body)
+
+    def test_pdf_reader_uses_page_blocks_without_chapter_ui_or_losing_segment_anchor(self):
+        self._seed_pdf_reader_edition()
+
+        body = self.client.get("/edition/6/read/618?highlight=1").get_data(as_text=True)
+
+        self.assertIn('class="reader-layout reader-layout-pdf"', body)
+        self.assertNotIn('class="reader-sidebar"', body)
+        self.assertNotIn("章节目录", body)
+        self.assertNotIn("未标注章节", body)
+        self.assertNotIn('class="chapter-nav"', body)
+        self.assertIn('class="pdf-page-label">PDF 1</div>', body)
+        self.assertIn('class="pdf-page-label">p.1 · PDF 18</div>', body)
+        self.assertIn('id="pdf-page-18" class="pdf-reader-page"', body)
+        self.assertIn(
+            'id="segment-618" class="reader-paragraph reader-target segment-highlight-primary"',
+            body,
+        )
+
+    def test_epub_reader_keeps_chapter_navigation_and_segment_anchor(self):
+        body = self.client.get("/edition/1/read/160?highlight=1").get_data(as_text=True)
+
+        self.assertIn('class="reader-sidebar"', body)
+        self.assertIn("章节目录", body)
+        self.assertIn('class="toc-item toc-chapter toc-current"', body)
+        self.assertEqual(body.count('class="chapter-nav'), 2)
+        self.assertIn(
+            'id="segment-160" class="reader-paragraph reader-target segment-highlight-primary"',
+            body,
+        )
 
     def test_multiple_highlights_validate_ids_and_use_primary_and_related_styles(self):
         body = self.client.get(

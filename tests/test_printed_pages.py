@@ -139,10 +139,11 @@ class PrintedPageTests(unittest.TestCase):
         pdf_body = self.client.get("/edition/2/read/2").get_data(as_text=True)
         epub_body = self.client.get("/edition/1/read/1").get_data(as_text=True)
 
-        self.assertEqual(pdf_body.count('class="reader-page-marker"'), 2)
+        self.assertEqual(pdf_body.count('class="pdf-reader-page"'), 2)
         self.assertIn("p.3 · PDF 20", pdf_body)
         self.assertIn("PDF 20", pdf_body)
-        self.assertNotIn('class="reader-page-marker"', epub_body)
+        self.assertIn('id="pdf-page-20" class="pdf-reader-page"', pdf_body)
+        self.assertNotIn('class="pdf-reader-page"', epub_body)
         self.assertIn("needle epub", epub_body)
 
 

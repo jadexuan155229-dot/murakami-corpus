@@ -3,6 +3,7 @@
 {% set current = chapter['current'] %}
 {% set previous = chapter['previous'] %}
 {% set following = chapter['next'] %}
+{% set is_pdf = edition['format'] == 'pdf' %}
 {% macro render_highlighted_text(parts, fallback) -%}
   {%- if parts -%}
     {%- for part in parts -%}
@@ -10,9 +11,10 @@
     {%- endfor -%}
   {%- else -%}{{ fallback }}{%- endif -%}
 {%- endmacro %}
-{% block title %}{{ current['title'] }} · {{ edition['title_zh'] }}{% endblock %}
+{% block title %}{% if is_pdf %}{{ edition['title_zh'] }}{% else %}{{ current['title'] }} · {{ edition['title_zh'] }}{% endif %}{% endblock %}
 {% block content %}
-<div class="reader-layout" data-language="{{ edition['language'] }}">
+<div class="reader-layout{% if is_pdf %} reader-layout-pdf{% endif %}" data-language="{{ edition['language'] }}">
+  {% if not is_pdf %}
   <aside class="reader-sidebar">
     <details class="reader-toc" open>
       <summary>章节目录</summary>
@@ -25,6 +27,7 @@
       </nav>
     </details>
   </aside>
+  {% endif %}
 
   <article class="reader-page">
     <header class="reader-heading" style="--chapter-progress-pct: {{ (15 + chapter_progress * 70)|round(2) }}%;">
@@ -33,9 +36,10 @@
         <span class="lang-badge lang-{{ edition['language'] }}">{{ edition['language']|lang_label }}</span>
       </p>
       <h1>{{ edition['title_zh'] }}</h1>
-      <p class="reader-chapter-title">{{ current['title'] }}</p>
+      {% if not is_pdf %}<p class="reader-chapter-title">{{ current['title'] }}</p>{% endif %}
     </header>
 
+    {% if not is_pdf %}
     <nav class="chapter-nav" aria-label="章节导航">
       {% if previous %}
         <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">← 上一章</a>
@@ -44,16 +48,22 @@
         <a rel="next" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=following['first_segment_id'], _anchor='segment-' ~ following['first_segment_id']) }}">下一章 →</a>
       {% else %}<span></span>{% endif %}
     </nav>
+    {% endif %}
 
     <section class="reader-text" lang="{{ edition['language'] }}">
       {% for segment in chapter['segments'] %}
-        {% if edition['format'] == 'pdf' and segment['page'] is not none %}
-        <div class="reader-page-marker">{% if segment['printed_page'] %}p.{{ segment['printed_page'] }} · {% endif %}PDF {{ segment['page'] }}</div>
-        {% endif %}
+        {% if is_pdf %}
+        <section id="pdf-page-{{ segment['page'] }}" class="pdf-reader-page">
+          <div class="pdf-page-label">{% if segment['printed_page'] %}p.{{ segment['printed_page'] }} · {% endif %}PDF {{ segment['page'] }}</div>
+          <p id="segment-{{ segment['id'] }}" class="reader-paragraph{% if segment['id'] == primary_highlight_segment_id %} reader-target segment-highlight-primary{% elif segment['id'] in related_highlight_segment_ids %} segment-highlight-related{% endif %}">{{ render_highlighted_text(term_highlights.get(segment['id']), segment['content']) }}</p>
+        </section>
+        {% else %}
         <p id="segment-{{ segment['id'] }}" class="reader-paragraph{% if segment['id'] == primary_highlight_segment_id %} reader-target segment-highlight-primary{% elif segment['id'] in related_highlight_segment_ids %} segment-highlight-related{% endif %}">{{ render_highlighted_text(term_highlights.get(segment['id']), segment['content']) }}</p>
+        {% endif %}
       {% endfor %}
     </section>
 
+    {% if not is_pdf %}
     <nav class="chapter-nav chapter-nav-bottom" aria-label="章节导航">
       {% if previous %}
         <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">← 上一章</a>
@@ -62,6 +72,7 @@
         <a rel="next" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=following['first_segment_id'], _anchor='segment-' ~ following['first_segment_id']) }}">下一章 →</a>
       {% else %}<span></span>{% endif %}
     </nav>
+    {% endif %}
   </article>
 </div>
 <script>

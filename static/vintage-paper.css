@@ -388,6 +388,9 @@
   gap: 1.35rem;
   margin-top: -.55rem;
 }
+.theme-vintage-paper .reader-layout.reader-layout-pdf {
+  grid-template-columns: minmax(0, 1fr);
+}
 .theme-vintage-paper main:has(.reader-layout) {
   margin-top: .55rem;
   margin-bottom: .55rem;
