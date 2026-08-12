@@ -2,6 +2,44 @@
 
 > 说明：当前工作区未检测到可用的 Git 历史记录，因此本报告基于最近文件更新时间、关键代码和测试文件的现状整理。
 
+## 最新增补：中英界面国际化与英文紧凑布局（2026-08-12）
+
+提交：`c378633 Add bilingual UI support`
+
+本次建立了不引入额外依赖的中英 UI 国际化框架，并覆盖站点导航、首页、搜索结果、作品详情与上传区、阅读器及返回顶部按钮。
+
+涉及文件：
+
+- `corpus/i18n.py`
+- `app.py`
+- `templates/base.html`
+- `templates/index.html`
+- `templates/search.html`
+- `templates/_search_hits.html`
+- `templates/work.html`
+- `templates/reader.html`
+- `templates/_back_to_top.html`
+- `static/ui-language.js`
+- `static/theme-switcher.js`
+- `static/style.css`
+- `static/vintage-paper.css`
+- `tests/test_ui_language.py`
+- `tests/test_search.py`
+
+主要内容：
+
+- 新增 `murakami-corpus-ui-language` cookie，允许值仅为 `zh` / `en`；缺失或非法值均安全回退为中文。语言切换只写 cookie 并刷新当前页面，因此保留现有 URL 查询参数。
+- `ui_lang` 与检索语料参数 `lang` 严格分离：`lang=zh / ja / en` 仍只决定语料检索语言，绝不决定界面语言。
+- 以 `t()` 向模板提供轻量翻译表；搜索结果展开/收起、加载、失败提示等动态文案均由服务端写入 data 属性，JavaScript 不维护第二套翻译表。
+- genre 新增纯展示层映射：英文界面显示 `Novel`、`Essays` 等，而数据库值、`data-genre` 与 `?genre=` 参数仍保留原始中文值。
+- 搜索结果的紧凑语言 badge 在英文界面使用 `CN / JP / EN`，中文界面保持 `中 / 日 / 英`；搜索标题和作品版本表等较宽区域继续使用完整语言名称。
+- 英文作品详情优化了语言、格式及 metadata 标签的紧凑布局：完整语言名不再溢出，PDF 页码显示为 `PDF · pages`，metadata 使用 `Japanese title` / `English title`；搜索页仍显示完整的 `PDF · Page numbers`。
+- 英文主题显示名统一为 `Original Night` 与 `Vintage Paper`；未改变主题值、localStorage key、CSS class 或切换逻辑。
+
+未修改：数据库 schema、作品 metadata、上传数据、作品正文、搜索命中原文、搜索逻辑及 `lang` / `genre` / `book_no` 的真实值。
+
+验证：执行 `.venv/bin/python -m pytest`，**159 项全部通过**。
+
 ## 最新增补：edition 分册编号支持（2026-08-12）
 
 提交：`2316803 feat: add edition book number support`
