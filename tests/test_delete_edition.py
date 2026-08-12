@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -138,7 +139,9 @@ class DeleteEditionTests(unittest.TestCase):
         unsafe_names = [
             "../escape.epub",
             "/tmp/escape.epub",
-            "sub/book.epub",
+            "sub/inner/book.epub",
+            "sub//book.epub",
+            "sub/./book.epub",
             "sub\\book.epub",
             "C:\\escape.epub",
         ]
@@ -157,6 +160,46 @@ class DeleteEditionTests(unittest.TestCase):
                 with self.assertRaises(db.UnsafeEditionFileError):
                     db.delete_edition(1, edition_id)
                 self.assertIn(edition_id, self._ids("editions"))
+
+    def test_safe_file_accepts_legacy_and_one_level_work_directory(self):
+        self.assertEqual(db._safe_edition_file("one.epub"), self.files_dir / "one.epub")
+        folder = self.files_dir / "w1_作品一"
+        folder.mkdir()
+        nested = folder / "one.epub"
+        nested.write_text("nested", encoding="utf-8")
+        self.assertEqual(
+            db._safe_edition_file("w1_作品一/one.epub"), nested
+        )
+
+    def test_safe_file_rejects_symlink_directory_and_file(self):
+        outside = self.files_dir.parent / "outside.epub"
+        outside.write_text("outside", encoding="utf-8")
+        directory_link = self.files_dir / "w1_link"
+        os.symlink(self.files_dir.parent, directory_link)
+        with self.assertRaises(db.UnsafeEditionFileError):
+            db._safe_edition_file("w1_link/outside.epub")
+
+        file_link = self.files_dir / "linked.epub"
+        os.symlink(outside, file_link)
+        with self.assertRaises(db.UnsafeEditionFileError):
+            db._safe_edition_file("linked.epub")
+
+    def test_delete_removes_file_in_work_directory_and_empty_folder(self):
+        folder = self.files_dir / "w1_作品一"
+        folder.mkdir()
+        source = folder / "one.epub"
+        (self.files_dir / "one.epub").replace(source)
+        con = db.connect()
+        con.execute(
+            "UPDATE editions SET filename=? WHERE id=1", ("w1_作品一/one.epub",)
+        )
+        con.commit()
+        con.close()
+
+        result = db.delete_edition(1, 1)
+
+        self.assertEqual(result["file_status"], "deleted")
+        self.assertFalse(folder.exists())
 
     def test_file_staging_failure_leaves_database_unchanged(self):
         before = self._edition_snapshot(1)
@@ -186,6 +229,25 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertEqual(self._edition_snapshot(1), before)
         self.assertTrue((self.files_dir / "one.epub").exists())
         self.assertEqual(list((self.files_dir / ".trash").iterdir()), [])
+
+    def test_database_failure_restores_file_to_work_directory(self):
+        folder = self.files_dir / "w1_作品一"
+        folder.mkdir()
+        source = folder / "one.epub"
+        (self.files_dir / "one.epub").replace(source)
+        con = db.connect()
+        con.execute(
+            "UPDATE editions SET filename=? WHERE id=1", ("w1_作品一/one.epub",)
+        )
+        con.commit()
+        con.close()
+
+        with patch.object(db, "_delete_edition_records", side_effect=sqlite3.OperationalError("forced")):
+            with self.assertRaises(sqlite3.OperationalError):
+                db.delete_edition(1, 1)
+
+        self.assertTrue(source.exists())
+        self.assertIn(1, self._ids("editions"))
 
     def test_cleanup_failure_reports_partial_success_and_keeps_staged_file(self):
         with patch("pathlib.Path.unlink", side_effect=PermissionError("denied")):

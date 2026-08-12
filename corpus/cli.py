@@ -7,6 +7,7 @@
   python -m corpus.cli list                              列出全部作品与索引状态
   python -m corpus.cli search "羊男" [--lang ja]          终端全文检索
   python -m corpus.cli repair-chapters --edition 1       预览 EPUB 章节标题修复
+  python -m corpus.cli organize-files [--apply]           整理旧式根目录原文件
 """
 
 from __future__ import annotations
@@ -40,28 +41,50 @@ def cmd_add(args):
     con = db.connect()
     work = con.execute("SELECT * FROM works WHERE id=?", (args.work,)).fetchone()
     if work is None:
+        con.close()
         sys.exit(f"作品 ID {args.work} 不存在，请先 import-notion 或在网页端创建。")
 
-    dest = db.FILES_DIR / f"w{args.work}_{args.lang}_{src.name}"
-    shutil.copy2(src, dest)
+    try:
+        dest, created_folder = db.work_storage_file(
+            args.work, work["title_zh"], f"w{args.work}_{args.lang}_{src.name}"
+        )
+    except Exception:
+        con.close()
+        raise
+    filename = db.edition_filename(dest)
+    committed = False
+    try:
+        shutil.copy2(src, dest)
+        cur = con.execute(
+            "INSERT INTO editions (work_id, language, format, filename, has_pages, notes)"
+            " VALUES (?,?,?,?,?,?)",
+            (args.work, args.lang, src.suffix.lstrip(".").lower(), filename,
+             1 if src.suffix.lower() == ".pdf" else 0, args.notes),
+        )
+        edition_id = cur.lastrowid
 
-    cur = con.execute(
-        "INSERT INTO editions (work_id, language, format, filename, has_pages, notes)"
-        " VALUES (?,?,?,?,?,?)",
-        (args.work, args.lang, src.suffix.lstrip(".").lower(), dest.name,
-         1 if src.suffix.lower() == ".pdf" else 0, args.notes),
-    )
-    edition_id = cur.lastrowid
-
-    print(f"解析 {src.name} …")
-    segments = parse_file(dest)
-    n = db.insert_segments(con, edition_id, segments)
-    con.execute(
-        "UPDATE editions SET indexed_at=? WHERE id=?",
-        (datetime.now(timezone.utc).isoformat(timespec="seconds"), edition_id),
-    )
-    con.commit()
-    con.close()
+        print(f"解析 {src.name} …")
+        segments = parse_file(dest)
+        n = db.insert_segments(con, edition_id, segments)
+        con.execute(
+            "UPDATE editions SET indexed_at=? WHERE id=?",
+            (datetime.now(timezone.utc).isoformat(timespec="seconds"), edition_id),
+        )
+        con.commit()
+        committed = True
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        if not committed:
+            dest.unlink(missing_ok=True)
+            if created_folder:
+                try:
+                    dest.parent.rmdir()
+                except OSError:
+                    pass
+        raise
+    finally:
+        con.close()
     print(f"《{work['title_zh']}》[{args.lang}] 入库完成：{n} 个片段已进入全文索引。")
 
 
@@ -91,6 +114,104 @@ def cmd_search(args):
             print(f"  …{hit['left']}【{hit['match']}】{hit['right']}…\n")
     con.close()
     print(f"共 {len(rows)} 个片段命中。")
+
+
+def cmd_organize_files(args):
+    """把仍在 data/files 根目录的 legacy 文件按作品目录移动。"""
+    con = db.connect()
+    try:
+        rows = con.execute(
+            """SELECT e.id, e.work_id, e.filename, w.title_zh
+               FROM editions e JOIN works w ON w.id=e.work_id
+               WHERE e.filename IS NOT NULL
+               ORDER BY e.filename, e.id"""
+        ).fetchall()
+        by_filename = {}
+        for row in rows:
+            by_filename.setdefault(row["filename"], []).append(row)
+
+        apply = bool(getattr(args, "apply", False))
+        for filename, editions in by_filename.items():
+            try:
+                source = db._safe_edition_file(filename)
+            except db.UnsafeEditionFileError as exc:
+                for edition in editions:
+                    print(f"edition {edition['id']}: {filename} [unsafe: {exc}]")
+                continue
+
+            # New-format paths are already organized and deliberately untouched.
+            if len(Path(filename).parts) != 1:
+                for edition in editions:
+                    print(f"edition {edition['id']}: {filename} [already organized]")
+                continue
+
+            work_ids = {edition["work_id"] for edition in editions}
+            if len(work_ids) != 1:
+                ids = ", ".join(str(edition["id"]) for edition in editions)
+                print(f"editions {ids}: {filename} [shared: multiple works; skipped]")
+                continue
+
+            work = editions[0]
+            folder = db.work_storage_folder(work["work_id"], work["title_zh"])
+            target_filename = f"{folder}/{filename}"
+            target = db.FILES_DIR / folder / filename
+            if not source.exists():
+                for edition in editions:
+                    print(f"edition {edition['id']}: {filename} -> {target_filename} [missing]")
+                continue
+            if target.exists() or target.is_symlink():
+                for edition in editions:
+                    print(f"edition {edition['id']}: {filename} -> {target_filename} [collision]")
+                continue
+
+            shared = len(editions) > 1
+            suffix = f" [shared: {len(editions)} editions]" if shared else ""
+            if not apply:
+                for edition in editions:
+                    print(f"edition {edition['id']}: {filename} -> {target_filename} [DRY-RUN]{suffix}")
+                continue
+
+            destination = None
+            created_folder = False
+            moved = False
+            try:
+                destination, created_folder = db.work_storage_file(
+                    work["work_id"], work["title_zh"], filename
+                )
+                # Re-check after directory creation to avoid overwriting a concurrent target.
+                if destination.exists() or destination.is_symlink():
+                    raise FileExistsError(f"目标文件已存在：{destination}")
+                con.execute("BEGIN IMMEDIATE")
+                source.replace(destination)
+                moved = True
+                cur = con.execute(
+                    "UPDATE editions SET filename=? WHERE filename=?",
+                    (target_filename, filename),
+                )
+                if cur.rowcount != len(editions):
+                    raise RuntimeError("迁移期间共享引用发生变化，已中止")
+                con.commit()
+            except Exception as exc:
+                if con.in_transaction:
+                    con.rollback()
+                if moved and destination is not None and destination.exists():
+                    try:
+                        destination.replace(source)
+                    except OSError as restore_exc:
+                        raise RuntimeError(
+                            f"迁移失败且无法恢复原文件：{destination}"
+                        ) from restore_exc
+                if created_folder and destination is not None:
+                    try:
+                        destination.parent.rmdir()
+                    except OSError:
+                        pass
+                print(f"edition {work['id']}: {filename} -> {target_filename} [failed: {exc}]")
+                continue
+            for edition in editions:
+                print(f"edition {edition['id']}: {filename} -> {target_filename} [moved]{suffix}")
+    finally:
+        con.close()
 
 
 def _chapter_label(value: str | None) -> str:
@@ -150,9 +271,11 @@ def cmd_repair_chapters(args):
         if not edition["filename"]:
             sys.exit(f"版本 edition {edition_id} 没有记录原文件名。")
 
-        files_root = db.FILES_DIR.resolve()
-        source = (db.FILES_DIR / edition["filename"]).resolve()
-        if files_root not in source.parents or not source.is_file():
+        try:
+            source = db._safe_edition_file(edition["filename"])
+        except db.UnsafeEditionFileError as exc:
+            sys.exit(f"找不到版本原文件，或文件路径不安全：{exc}")
+        if not source.is_file():
             sys.exit(f"找不到版本原文件，或文件路径不安全：{source}")
 
         print(f"重新解析 {source.name} …")
@@ -219,6 +342,10 @@ def main():
     sp.add_argument("--edition", dest="edition_option", type=int, help="要检查的版本 ID（兼容旧用法）")
     sp.add_argument("--apply", action="store_true", help="通过完整校验后实际更新 chapter")
     sp.set_defaults(func=cmd_repair_chapters)
+
+    sp = sub.add_parser("organize-files", help="整理 data/files 根目录中的旧式版本文件")
+    sp.add_argument("--apply", action="store_true", help="实际移动文件并更新 editions.filename")
+    sp.set_defaults(func=cmd_organize_files)
 
     args = p.parse_args()
     args.func(args)

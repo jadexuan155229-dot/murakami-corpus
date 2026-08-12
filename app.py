@@ -15,6 +15,11 @@ import re
 import secrets
 import sqlite3
 import shutil
+import socket
+import subprocess
+import threading
+import time
+import webbrowser
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
@@ -49,6 +54,35 @@ LOCAL_DEV = False
 LANG_LABEL = {"zh": "中", "ja": "日", "en": "英"}
 LANG_NAME = {"zh": "中文", "ja": "日文", "en": "英文"}
 MAX_DISPLAY_QUERY_LENGTH = 300
+LOCAL_URL = "http://127.0.0.1:5731/"
+
+
+def open_local_browser() -> None:
+    """在当前系统的默认浏览器中打开本地网页。"""
+    # WSL 通常没有 Linux 桌面浏览器；交给 Windows 能稳定打开用户的默认浏览器。
+    if os.environ.get("WSL_DISTRO_NAME"):
+        try:
+            subprocess.Popen(
+                ["cmd.exe", "/c", "start", "", LOCAL_URL],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+        except OSError:
+            pass
+    webbrowser.open_new_tab(LOCAL_URL)
+
+
+def open_local_browser_when_ready(timeout: float = 15.0) -> None:
+    """服务开始监听后再打开本地网页，避免浏览器先看到连接失败页。"""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", 5731), timeout=0.25):
+                open_local_browser()
+                return
+        except OSError:
+            time.sleep(0.05)
 
 
 def writes_allowed() -> bool:
@@ -519,7 +553,18 @@ def upload(work_id):
     raw_stem = Path(file.filename).stem
     safe_stem = secure_filename(raw_stem) or "upload"
     safe = f"{safe_stem}{suffix}"
-    dest = db.FILES_DIR / f"w{work_id}_{lang}_{safe}"
+    con = db.connect()
+    try:
+        work = con.execute(
+            "SELECT title_zh FROM works WHERE id=?", (work_id,)
+        ).fetchone()
+    finally:
+        con.close()
+    if work is None:
+        abort(404)
+
+    dest, created_folder = db.work_storage_file(work_id, work["title_zh"], f"w{work_id}_{lang}_{safe}")
+    filename = db.edition_filename(dest)
     committed = False
     try:
         file.save(dest)
@@ -529,7 +574,7 @@ def upload(work_id):
             cur = con.execute(
                 "INSERT INTO editions (work_id, language, format, filename, has_pages)"
                 " VALUES (?,?,?,?,?)",
-                (work_id, lang, suffix.lstrip("."), dest.name,
+                (work_id, lang, suffix.lstrip("."), filename,
                  1 if suffix == ".pdf" else 0),
             )
             edition_id = cur.lastrowid
@@ -548,6 +593,11 @@ def upload(work_id):
     except Exception:
         if not committed:
             dest.unlink(missing_ok=True)
+            if created_folder:
+                try:
+                    dest.parent.rmdir()
+                except OSError:
+                    pass
         raise
     return redirect(url_for("work_detail", work_id=work_id))
 
@@ -578,4 +628,6 @@ if __name__ == "__main__":
     # 因此 LOCAL_DEV 保持 False，写操作必须凭 CORPUS_ADMIN_PASSWORD。
     LOCAL_DEV = True
     db.bootstrap()
-    app.run(host="0.0.0.0", port=5731, debug=True)
+    # 只在服务就绪后打开浏览器；LOCAL_DEV=True 会让首页中的上传表单可用。
+    threading.Thread(target=open_local_browser_when_ready, daemon=True).start()
+    app.run(host="127.0.0.1", port=5731, debug=False)

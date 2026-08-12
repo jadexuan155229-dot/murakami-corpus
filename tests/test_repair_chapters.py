@@ -219,6 +219,23 @@ class RepairChaptersTests(unittest.TestCase):
         self.assertIn("DRY-RUN：数据库未作任何修改", output)
         self.assertEqual(self._chapters(), before)
 
+    def test_repair_accepts_file_in_work_directory(self):
+        folder = self.files_dir / "w1_测试作品"
+        folder.mkdir()
+        source = folder / "old.epub"
+        self.epub.replace(source)
+        con = db.connect()
+        con.execute(
+            "UPDATE editions SET filename=? WHERE id=1", ("w1_测试作品/old.epub",)
+        )
+        con.commit()
+        con.close()
+
+        output = self._run()
+
+        self.assertIn("重新解析 old.epub", output)
+        self.assertIn("DRY-RUN：数据库未作任何修改", output)
+
     def test_apply_updates_only_chapters(self):
         before_rows, before_fts = self._chapters()
 

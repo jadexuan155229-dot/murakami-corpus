@@ -101,6 +101,24 @@ class ImportOcrJsonlTests(unittest.TestCase):
         with self.assertRaisesRegex(importer.OcrImportError, "PDF edition"):
             self.plan(2)
 
+    def test_plan_accepts_pdf_in_work_directory(self):
+        folder = self.files_dir / "w1_且听风吟"
+        folder.mkdir()
+        source = folder / "scan.pdf"
+        (self.files_dir / "scan.pdf").replace(source)
+        con = db.connect()
+        con.execute(
+            "UPDATE editions SET filename=? WHERE id=1", ("w1_且听风吟/scan.pdf",)
+        )
+        con.commit()
+        con.close()
+        self.write_jsonl(self.records())
+
+        plan = self.plan()
+
+        self.assertEqual(plan.filename, "w1_且听风吟/scan.pdf")
+        self.assertEqual(plan.pdf_page_count, 3)
+
     def test_rejects_duplicate_pages_and_malformed_jsonl(self):
         self.write_jsonl([{"pdf_page": 1, "text": "one"}, {"pdf_page": 1, "text": "two"}])
         with self.assertRaisesRegex(importer.OcrImportError, "重复"):

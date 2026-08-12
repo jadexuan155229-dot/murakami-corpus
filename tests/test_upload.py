@@ -70,7 +70,7 @@ class UploadTests(unittest.TestCase):
 
         edition = self._edition()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(edition["filename"], "w1_zh_upload.epub")
+        self.assertEqual(edition["filename"], "w1_测试作品/w1_zh_upload.epub")
         self.assertEqual(edition["format"], "epub")
         self.assertTrue((self.files_dir / edition["filename"]).is_file())
         self.assertEqual(parse.call_args.args[0].suffix, ".epub")
@@ -81,7 +81,7 @@ class UploadTests(unittest.TestCase):
 
         edition = self._edition()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(edition["filename"], "w1_ja_upload.epub")
+        self.assertEqual(edition["filename"], "w1_测试作品/w1_ja_upload.epub")
         self.assertTrue((self.files_dir / edition["filename"]).is_file())
 
     def test_english_pdf_name_keeps_clean_stem_and_suffix(self):
@@ -90,7 +90,7 @@ class UploadTests(unittest.TestCase):
 
         edition = self._edition()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(edition["filename"], "w1_en_Field_Notes.pdf")
+        self.assertEqual(edition["filename"], "w1_测试作品/w1_en_Field_Notes.pdf")
         self.assertEqual(edition["format"], "pdf")
         self.assertEqual(edition["has_pages"], 1)
 
@@ -102,7 +102,7 @@ class UploadTests(unittest.TestCase):
             self._upload("anything.epub")
 
         edition = self._edition()
-        self.assertEqual(edition["filename"], "w1_zh_upload.epub")
+        self.assertEqual(edition["filename"], "w1_测试作品/w1_zh_upload.epub")
 
     def test_parse_failure_leaves_no_edition_and_connection_is_usable(self):
         with patch.object(webapp, "parse_file", side_effect=ValueError("invalid test file")):
@@ -121,6 +121,9 @@ class UploadTests(unittest.TestCase):
                 self._upload("壊れた本.epub", language="ja")
 
         self.assertEqual(list(self.files_dir.iterdir()), [])
+
+    def test_work_storage_folder_preserves_chinese_title(self):
+        self.assertEqual(db.work_storage_folder(1, "测试作品"), "w1_测试作品")
 
 
 if __name__ == "__main__":

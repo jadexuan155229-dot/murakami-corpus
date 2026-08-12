@@ -21,7 +21,7 @@ import sqlite3
 import sys
 import uuid
 from pathlib import Path
-from pathlib import PureWindowsPath
+from pathlib import PurePosixPath, PureWindowsPath
 
 # 打包成桌面程序后，代码与模板跑在 PyInstaller 解出的只读临时目录里，
 # 而数据库必须可写——两者从此是不同的位置，下面分开解析。
@@ -53,6 +53,9 @@ def _default_data_dir() -> Path:
 DATA_DIR = Path(os.environ.get("CORPUS_DATA_DIR") or _default_data_dir())
 DB_PATH = DATA_DIR / "corpus.db"
 FILES_DIR = DATA_DIR / "files"
+
+_STORAGE_TITLE_INVALID = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f-\x9f]')
+_WORK_STORAGE_TITLE_MAX_LENGTH = 100
 
 # 随代码一起分发的作品元数据（Notion 导出），用于空库首次启动时载入书架。
 WORKS_CSV = RESOURCE_ROOT / "works_metadata.csv"
@@ -337,25 +340,92 @@ class EditionFileRestoreError(EditionDeleteError):
     pass
 
 
+def work_storage_folder(work_id: int, title_zh: str) -> str:
+    """返回作品原始文件目录名，不改变数据库中的作品标题。"""
+    title = _STORAGE_TITLE_INVALID.sub("_", title_zh or "")
+    title = title[:_WORK_STORAGE_TITLE_MAX_LENGTH].rstrip(". ") or "untitled"
+    return f"w{work_id}_{title}"
+
+
+def ensure_work_storage_dir(work_id: int, title_zh: str) -> tuple[Path, bool]:
+    """创建并验证作品目录，返回 ``(目录, 是否刚创建)``。"""
+    FILES_DIR.mkdir(parents=True, exist_ok=True)
+    root = FILES_DIR.resolve()
+    folder = FILES_DIR / work_storage_folder(work_id, title_zh)
+    if folder.is_symlink():
+        raise UnsafeEditionFileError(f"作品目录不能是符号链接：{folder.name!r}")
+    if folder.exists() and not folder.is_dir():
+        raise UnsafeEditionFileError(f"作品目录不是目录：{folder.name!r}")
+    created = not folder.exists()
+    if created:
+        folder.mkdir()
+    try:
+        resolved = folder.resolve(strict=True)
+    except OSError as exc:
+        raise UnsafeEditionFileError(f"无法验证作品目录：{folder.name!r}") from exc
+    if resolved.parent != root or folder.is_symlink():
+        raise UnsafeEditionFileError(f"作品目录位于 data/files 之外：{folder.name!r}")
+    return folder, created
+
+
+def work_storage_file(work_id: int, title_zh: str, basename: str) -> tuple[Path, bool]:
+    """创建作品目录并返回安全的版本文件路径及目录创建标志。"""
+    if (
+        not basename
+        or Path(basename).name != basename
+        or "/" in basename
+        or "\\" in basename
+        or basename in {".", ".."}
+    ):
+        raise UnsafeEditionFileError(f"非法版本文件名：{basename!r}")
+    folder, created = ensure_work_storage_dir(work_id, title_zh)
+    path = folder / basename
+    _safe_edition_file(path.relative_to(FILES_DIR).as_posix())
+    return path, created
+
+
+def edition_filename(path: Path) -> str:
+    """把 data/files 下的版本路径转换为数据库存储的 POSIX 相对路径。"""
+    try:
+        return path.relative_to(FILES_DIR).as_posix()
+    except ValueError as exc:
+        raise UnsafeEditionFileError(f"版本文件位于 data/files 之外：{path}") from exc
+
+
 def _safe_edition_file(filename: str) -> Path:
-    """把 edition filename 限制为 FILES_DIR 下的普通 basename。"""
+    """验证 editions.filename，并返回 data/files 下的普通文件路径。
+
+    兼容旧的根目录 basename，同时只允许一层子目录/文件的新结构。
+    """
+    if not isinstance(filename, str):
+        raise UnsafeEditionFileError(f"非法版本文件名：{filename!r}")
+    posix = PurePosixPath(filename)
+    parts = tuple(filename.split("/"))
     if (
         not filename
-        or Path(filename).is_absolute()
+        or posix.is_absolute()
         or PureWindowsPath(filename).is_absolute()
-        or Path(filename).name != filename
-        or "/" in filename
+        or PureWindowsPath(filename).drive
         or "\\" in filename
-        or filename in {".", ".."}
+        or len(parts) not in {1, 2}
+        or any(part in {"", ".", ".."} for part in parts)
     ):
         raise UnsafeEditionFileError(f"非法版本文件名：{filename!r}")
     root = FILES_DIR.resolve()
-    source = FILES_DIR / filename
+    source = FILES_DIR.joinpath(*parts)
+    folder = source.parent
+    if len(parts) == 2:
+        if folder.is_symlink():
+            raise UnsafeEditionFileError(f"作品目录不能是符号链接：{filename!r}")
+        if folder.exists() and not folder.is_dir():
+            raise UnsafeEditionFileError(f"作品目录不是目录：{filename!r}")
     try:
         resolved = source.resolve(strict=False)
     except OSError as exc:
         raise UnsafeEditionFileError(f"无法验证版本文件路径：{filename!r}") from exc
-    if resolved.parent != root:
+    if (len(parts) == 1 and resolved.parent != root) or (
+        len(parts) == 2 and resolved.parent.parent != root
+    ):
         raise UnsafeEditionFileError(f"版本文件位于 data/files 之外：{filename!r}")
     if source.is_symlink():
         raise UnsafeEditionFileError(f"版本文件不能是符号链接：{filename!r}")
@@ -475,6 +545,11 @@ def delete_edition(work_id: int, edition_id: int) -> dict:
         try:
             staged.unlink()
             summary["file_status"] = "deleted"
+            if source is not None and source.parent.resolve() != FILES_DIR.resolve():
+                try:
+                    source.parent.rmdir()
+                except OSError:
+                    pass
         except OSError as exc:
             summary["file_status"] = "cleanup_failed"
             summary["staged_path"] = str(staged)
