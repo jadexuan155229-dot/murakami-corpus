@@ -440,13 +440,17 @@
   color: #3f403a;
 }
 .theme-vintage-paper .reader-toc,
-.theme-vintage-paper .toc-list { scrollbar-color: #938873 #d8d0bb; }
+.theme-vintage-paper .toc-list,
+.theme-vintage-paper .search-work-nav { scrollbar-color: #938873 #d8d0bb; }
 .theme-vintage-paper .reader-toc::-webkit-scrollbar-track,
-.theme-vintage-paper .toc-list::-webkit-scrollbar-track { background: #d8d0bb; }
+.theme-vintage-paper .toc-list::-webkit-scrollbar-track,
+.theme-vintage-paper .search-work-nav::-webkit-scrollbar-track { background: #d8d0bb; }
 .theme-vintage-paper .reader-toc::-webkit-scrollbar-thumb,
-.theme-vintage-paper .toc-list::-webkit-scrollbar-thumb { background: #938873; border-color: #d8d0bb; }
+.theme-vintage-paper .toc-list::-webkit-scrollbar-thumb,
+.theme-vintage-paper .search-work-nav::-webkit-scrollbar-thumb { background: #938873; border-color: #d8d0bb; }
 .theme-vintage-paper .reader-toc::-webkit-scrollbar-thumb:hover,
-.theme-vintage-paper .toc-list::-webkit-scrollbar-thumb:hover { background: #756b59; }
+.theme-vintage-paper .toc-list::-webkit-scrollbar-thumb:hover,
+.theme-vintage-paper .search-work-nav::-webkit-scrollbar-thumb:hover { background: #756b59; }
 
 .theme-vintage-paper .reader-page {
   max-width: 44rem;

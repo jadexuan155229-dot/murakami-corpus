@@ -515,18 +515,18 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
 .toc-current { border-left-color: var(--wine); background: var(--wine-wash); color: var(--ink); }
 /* 目录滚动条：轨道贴近侧栏纸色，滑块用低饱和灰褐
    （桌面端滚动容器是 .reader-toc，移动端是 .toc-list，故两者都写） */
-.reader-toc, .toc-list {
+.reader-toc, .toc-list, .search-work-nav {
   scrollbar-width: thin;
   scrollbar-color: #c2b69c var(--wash);
 }
-.reader-toc::-webkit-scrollbar, .toc-list::-webkit-scrollbar { width: 10px; }
-.reader-toc::-webkit-scrollbar-track, .toc-list::-webkit-scrollbar-track {
+.reader-toc::-webkit-scrollbar, .toc-list::-webkit-scrollbar, .search-work-nav::-webkit-scrollbar { width: 10px; }
+.reader-toc::-webkit-scrollbar-track, .toc-list::-webkit-scrollbar-track, .search-work-nav::-webkit-scrollbar-track {
   background: var(--wash);
 }
-.reader-toc::-webkit-scrollbar-thumb, .toc-list::-webkit-scrollbar-thumb {
+.reader-toc::-webkit-scrollbar-thumb, .toc-list::-webkit-scrollbar-thumb, .search-work-nav::-webkit-scrollbar-thumb {
   background: #c2b69c; border-radius: 5px; border: 2px solid var(--wash);
 }
-.reader-toc::-webkit-scrollbar-thumb:hover, .toc-list::-webkit-scrollbar-thumb:hover {
+.reader-toc::-webkit-scrollbar-thumb:hover, .toc-list::-webkit-scrollbar-thumb:hover, .search-work-nav::-webkit-scrollbar-thumb:hover {
   background: #ab9d7f;
 }
 .reader-page { min-width: 0; max-width: 44rem; margin: 0 auto; }
