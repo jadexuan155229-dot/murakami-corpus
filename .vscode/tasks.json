@@ -21,6 +21,7 @@
         "clear": true
       },
       "runOptions": {
+        "runOn": "folderOpen",
         "instanceLimit": 1
       }
     },
