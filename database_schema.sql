@@ -17,7 +17,8 @@ CREATE TABLE editions (
     filename    TEXT,                    -- data/files/ 下的文件名
     has_pages   INTEGER DEFAULT 0,       -- PDF 是否带可引用页码
     notes       TEXT,
-    indexed_at  TEXT                     -- 完成全文索引的时间；NULL = 未索引
+    indexed_at  TEXT,                    -- 完成全文索引的时间；NULL = 未索引
+    book_no     INTEGER                  -- 分册编号；NULL 表示未指定
 );
 CREATE TABLE segments (
     id          INTEGER PRIMARY KEY,

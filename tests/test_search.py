@@ -342,6 +342,7 @@ class SearchPageTests(unittest.TestCase):
         )
 
         self.assertIn("p.4 · PDF 21", body)
+        self.assertNotIn("BOOK", body)
         self.assertNotIn("本页 1 条", body)
         self.assertIn(
             f"/edition/980/read/{page_21_id}?highlight=1&amp;search_q=contextunit"
@@ -538,6 +539,65 @@ class SearchPageTests(unittest.TestCase):
         self.assertNotIn(f'data-segment-id="{epub_segment_id}"', pdf_block)
         for segment_id in pdf_segment_ids:
             self.assertIn(f'data-segment-id="{segment_id}"', pdf_block)
+
+    def test_numbered_editions_sort_and_display_book_labels(self):
+        con = db.connect()
+        con.executemany(
+            """INSERT INTO editions
+               (id, work_id, language, book_no, format, indexed_at)
+               VALUES (?, 12, 'ja', ?, 'epub', ?)""",
+            [
+                (123, 3, "2026-01-01T00:00:00+00:00"),
+                (121, 1, "2026-01-01T00:00:00+00:00"),
+                (122, 2, "2026-01-01T00:00:00+00:00"),
+            ],
+        )
+        con.execute("UPDATE editions SET language='ja' WHERE id=120")
+        for edition_id in (120, 121, 122, 123):
+            db.insert_segments(
+                con,
+                edition_id,
+                [{
+                    "seq": 10,
+                    "chapter": "分册章节",
+                    "page": None,
+                    "content": "bookvolume unique text",
+                }],
+            )
+        rows = db.search_grouped(con, "bookvolume")
+        con.commit()
+        con.close()
+
+        self.assertEqual(
+            {row["edition_id"]: row["book_no"] for row in rows},
+            {120: None, 121: 1, 122: 2, 123: 3},
+        )
+        body = self.client.get("/search?q=bookvolume").get_data(as_text=True)
+        nav = re.search(
+            r'<nav class="search-edition-nav"[^>]*>(?P<nav>.*?)</nav>',
+            body,
+            re.DOTALL,
+        ).group("nav")
+
+        self.assertEqual(
+            re.findall(r'href="#edition-results-(\d+)"', nav),
+            ["121", "122", "123", "120"],
+        )
+        self.assertIn('>BOOK 1 · EPUB · 1</a>', nav)
+        self.assertIn('>BOOK 2 · EPUB · 1</a>', nav)
+        self.assertIn('>BOOK 3 · EPUB · 1</a>', nav)
+        self.assertIn('>EPUB · 1</a>', nav)
+        self.assertIn("日 · BOOK 1 · EPUB", body)
+        self.assertIn("日 · BOOK 2 · EPUB", body)
+        self.assertIn("日 · BOOK 3 · EPUB", body)
+        unnumbered = re.search(
+            r'<section class="search-edition-group" id="edition-results-120">'
+            r'(?P<body>.*?)</section>',
+            body,
+            re.DOTALL,
+        ).group("body")
+        self.assertIn("日 · EPUB", unnumbered)
+        self.assertNotIn("BOOK", unnumbered)
 
     def test_initial_and_work_links_url_encode_the_original_query(self):
         con = db.connect()

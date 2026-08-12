@@ -1,4 +1,5 @@
 import io
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,13 +37,18 @@ class UploadTests(unittest.TestCase):
         webapp.app.config.update(TESTING=True, SECRET_KEY="test-only-secret")
         self.client = webapp.app.test_client()
 
-    def _upload(self, filename: str, language: str = "zh"):
+    def _upload(
+        self, filename: str, language: str = "zh", book_no: str | None = None
+    ):
+        data = {
+            "lang": language,
+            "file": (io.BytesIO(b"invented test file"), filename),
+        }
+        if book_no is not None:
+            data["book_no"] = book_no
         return self.client.post(
             "/work/1/upload",
-            data={
-                "lang": language,
-                "file": (io.BytesIO(b"invented test file"), filename),
-            },
+            data=data,
             content_type="multipart/form-data",
         )
 
@@ -72,8 +78,22 @@ class UploadTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(edition["filename"], "w1_测试作品/w1_zh_upload.epub")
         self.assertEqual(edition["format"], "epub")
+        self.assertIsNone(edition["book_no"])
         self.assertTrue((self.files_dir / edition["filename"]).is_file())
         self.assertEqual(parse.call_args.args[0].suffix, ".epub")
+
+    def test_book_one_upload_saves_book_number_and_work_page_displays_it(self):
+        with self._successful_parse():
+            response = self._upload("第一册.epub", book_no="1")
+
+        edition = self._edition()
+        body = self.client.get("/work/1").get_data(as_text=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(edition["book_no"], 1)
+        self.assertIn(">分册<", body)
+        self.assertIn(">BOOK 1<", body)
+        self.assertIn('name="book_no"', body)
+        self.assertIn(">未指定<", body)
 
     def test_japanese_epub_name_preserves_suffix(self):
         with self._successful_parse():
@@ -124,6 +144,40 @@ class UploadTests(unittest.TestCase):
 
     def test_work_storage_folder_preserves_chinese_title(self):
         self.assertEqual(db.work_storage_folder(1, "测试作品"), "w1_测试作品")
+
+    def test_init_db_migrates_legacy_editions_with_null_book_number(self):
+        legacy_path = Path(self.temp_dir.name) / "legacy.db"
+        with patch.object(db, "DB_PATH", legacy_path):
+            con = sqlite3.connect(legacy_path)
+            con.executescript(
+                """
+                CREATE TABLE works (id INTEGER PRIMARY KEY, title_zh TEXT NOT NULL);
+                CREATE TABLE editions (
+                    id INTEGER PRIMARY KEY,
+                    work_id INTEGER NOT NULL REFERENCES works(id) ON DELETE CASCADE,
+                    language TEXT NOT NULL CHECK (language IN ('zh','ja','en')),
+                    format TEXT NOT NULL,
+                    filename TEXT,
+                    has_pages INTEGER DEFAULT 0,
+                    notes TEXT,
+                    indexed_at TEXT
+                );
+                INSERT INTO works (id, title_zh) VALUES (9, '旧版作品');
+                INSERT INTO editions (id, work_id, language, format)
+                VALUES (90, 9, 'ja', 'epub');
+                """
+            )
+            con.commit()
+            con.close()
+
+            db.init_db()
+            con = db.connect()
+            columns = {row["name"] for row in con.execute("PRAGMA table_info(editions)")}
+            edition = con.execute("SELECT book_no FROM editions WHERE id=90").fetchone()
+            con.close()
+
+        self.assertIn("book_no", columns)
+        self.assertIsNone(edition["book_no"])
 
 
 if __name__ == "__main__":

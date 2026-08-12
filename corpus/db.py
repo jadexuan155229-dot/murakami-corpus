@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS editions (
     filename    TEXT,                    -- data/files/ 下的文件名
     has_pages   INTEGER DEFAULT 0,       -- PDF 是否带可引用页码
     notes       TEXT,
-    indexed_at  TEXT                     -- 完成全文索引的时间；NULL = 未索引
+    indexed_at  TEXT,                    -- 完成全文索引的时间；NULL = 未索引
+    book_no     INTEGER                  -- 分册编号；NULL 表示未指定
 );
 
 CREATE TABLE IF NOT EXISTS segments (
@@ -211,6 +212,11 @@ def connect() -> sqlite3.Connection:
 def init_db() -> None:
     con = connect()
     con.executescript(SCHEMA)
+    edition_columns = {
+        row["name"] for row in con.execute("PRAGMA table_info(editions)")
+    }
+    if "book_no" not in edition_columns:
+        con.execute("ALTER TABLE editions ADD COLUMN book_no INTEGER")
     segment_columns = {
         row["name"] for row in con.execute("PRAGMA table_info(segments)")
     }
@@ -1000,7 +1006,7 @@ def search(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
+               e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
         FROM segments_fts f
         JOIN segments s ON s.id = f.segment_id
@@ -1047,7 +1053,7 @@ def search_grouped(
     sql = f"""
         WITH matches AS (
             SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-                   e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
+                   e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
                    w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
             FROM segments_fts f
             JOIN segments s ON s.id = f.segment_id
@@ -1070,7 +1076,7 @@ def search_grouped(
             FROM matches
         )
         SELECT segment_id, content, chapter, page, printed_page, seq,
-               edition_id, language, format, filename, has_pages,
+               edition_id, language, book_no, format, filename, has_pages,
                work_id, title_zh, title_ja, title_en, year, genres,
                total_hits, edition_counts.total_hit_editions
         FROM ranked
@@ -1095,7 +1101,7 @@ def search_work(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.format, e.filename, e.has_pages,
+               e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
                w.year, w.genres
         FROM segments_fts f
