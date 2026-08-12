@@ -136,14 +136,15 @@ button {
 button:hover { background: var(--wine-deep); border-color: var(--wine-deep); }
 
 /* 主题切换：只作用于页眉中的双主题按钮。 */
-.theme-switcher {
-  flex: 0 0 auto; align-self: center; min-height: 2.1rem; padding: .34em .72em;
+.theme-switcher, .ui-language-switcher {
+  flex: 0 0 auto; align-self: center; width: auto; min-width: 3.5rem;
+  min-height: 2.1rem; padding: .34em .72em;
   border: 1px solid var(--night-soft); border-radius: 2px;
   background: transparent; color: var(--night-ink); box-shadow: none;
   font-size: .8rem; letter-spacing: .04em; white-space: nowrap;
 }
-.theme-switcher:hover { background: var(--night-soft); border-color: var(--night-dim); color: #fff; }
-.theme-switcher:focus-visible { outline-color: var(--night-ink); }
+.theme-switcher:hover, .ui-language-switcher:hover { background: var(--night-soft); border-color: var(--night-dim); color: #fff; }
+.theme-switcher:focus-visible, .ui-language-switcher:focus-visible { outline-color: var(--night-ink); }
 
 /* 首页书架 */
 .stats {
@@ -388,14 +389,26 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
 .search-chapter-toggle:hover { border-color: var(--ink-soft); background: var(--wash); }
 .search-chapter-toggle:focus-visible { outline: 2px solid var(--wine); outline-offset: 2px; }
 .lang-badge {
-  display: inline-block; width: 1.5em; text-align: center; margin-right: .35em;
+  display: inline-block; width: auto; min-width: 0; padding: .04em .38em;
+  text-align: center; margin-right: .35em; white-space: nowrap;
   font-size: .75rem; color: var(--ink-soft);
   border: 1px solid var(--rule); border-radius: 3px; background: var(--paper-high);
+}
+.search-language-badge {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  padding-left: 0;
+  padding-right: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 /* 作品页 */
 .work-page h1 { font-size: 1.65rem; font-weight: normal; margin: .5rem 0 1rem; }
 .work-meta { display: grid; grid-template-columns: 6em 1fr; gap: .3em 1em; margin: 1rem 0 2.4rem; }
+html[lang="en"] .work-meta { grid-template-columns: 7.25em 1fr; }
 .work-meta dt { color: var(--ink-soft); font-size: .9rem; }
 .work-meta dd { margin: 0; }
 .work-page h2 {
@@ -407,9 +420,9 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
   background: var(--wine); margin-right: .7em; vertical-align: middle;
 }
 .edition-table { table-layout: fixed; }
-.edition-table .edition-language { width: 3.75rem; }
+.edition-table .edition-language { width: 6.25rem; }
 .edition-table .edition-book { width: 5.5rem; white-space: nowrap; }
-.edition-table .edition-format { width: 5.5rem; }
+.edition-table .edition-format { width: 6.5rem; white-space: nowrap; }
 .edition-table .edition-filename { width: 37%; max-width: 24rem; min-width: 0; }
 .edition-filename-text {
   display: block; min-width: 0; overflow: hidden;
@@ -610,7 +623,7 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
   .search-chapter-toggle-cell { padding-left: 0 !important; }
   .search-chapter-toggle { min-height: 2.5rem; padding-left: .75rem; padding-right: .75rem; }
   .site-header { padding: .95rem 1rem .9rem; }
-  .theme-switcher { min-height: 2rem; padding-left: .62em; padding-right: .62em; font-size: .76rem; }
+  .theme-switcher, .ui-language-switcher { min-height: 2rem; padding-left: .62em; padding-right: .62em; font-size: .76rem; }
   .searchbar { justify-content: stretch; }
   main { padding-left: 1rem; padding-right: 1rem; padding-top: 1.25rem; }
   .stats span { padding-right: 1.1rem; }

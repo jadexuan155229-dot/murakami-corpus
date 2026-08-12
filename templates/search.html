@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}“{{ q }}” · 检索{% endblock %}
+{% block title %}{{ t('search_title', query=q) }}{% endblock %}
 {% block main_class %}{% if results %}search-page{% endif %}{% endblock %}
 {% block content %}
 {% if q %}
-  <p class="result-summary">“<b>{{ q }}</b>”{% if lang %} · {{ lang|lang_label }}文{% endif %} — {{ results|length }} 部作品中有命中</p>
+  <p class="result-summary">“<b>{{ q }}</b>”{% if lang %} · {{ t('language_' ~ lang) }} {% endif %} {{ t('search_matches_in_works', count=results|length) }}</p>
 
   {% if results %}
   <div class="search-results-layout">
     <aside class="search-work-sidebar">
       <details class="search-work-nav" open>
-        <summary>命中作品</summary>
-        <nav aria-label="命中作品导航">
+        <summary>{{ t('matching_works') }}</summary>
+        <nav aria-label="{{ t('matching_works_aria') }}">
           {% for work in results %}
           <a class="search-work-link{% if loop.first %} is-active{% endif %}"
              href="#work-results-{{ work['work_id'] }}"
@@ -29,19 +29,21 @@
       <section class="result-work" id="work-results-{{ work['work_id'] }}" data-work-id="{{ work['work_id'] }}">
         <h2><a href="{{ url_for('work_detail', work_id=work['work_id']) }}">{{ work['title_zh'] }}</a>
             <span class="year">{{ work['year'] or '' }}</span>
-            <span class="hit-count">{{ work['total_hits'] }} 个命中片段{% if work['total_hit_editions'] > 1 %} · {{ work['total_hit_editions'] }} 个命中版本{% endif %}</span></h2>
+            <span class="hit-count">{{ t('hit_segments_count', count=work['total_hits']) }}{% if work['total_hit_editions'] > 1 %} · {{ t('hit_editions_count', count=work['total_hit_editions']) }}{% endif %}</span></h2>
         <div class="search-hit-rows" id="work-hits-{{ work['work_id'] }}">
           {% with edition_groups=work['edition_groups'] %}{% include "_search_hits.html" %}{% endwith %}
         </div>
         {% if work['is_truncated'] %}
         <div class="search-expand-controls">
-          <p class="search-truncation-note">当前显示前 {{ work['displayed_hits'] }} 个命中片段，共 {{ work['total_hits'] }} 个。</p>
+          <p class="search-truncation-note">{{ t('showing_hits', shown=work['displayed_hits'], total=work['total_hits']) }}</p>
           <button class="search-expand-button" type="button"
                   aria-expanded="false" aria-controls="work-hits-{{ work['work_id'] }}"
                   data-url="{{ url_for('search_work_hits', work_id=work['work_id'], q=q, lang=lang, genre=genre) }}"
-                  data-expand-label="展开全部 {{ work['total_hits'] }} 条"
-                  data-collapse-label="收起至前 {{ work['displayed_hits'] }} 条">
-            展开全部 {{ work['total_hits'] }} 条
+                  data-expand-label="{{ t('expand_all_hits', count=work['total_hits']) }}"
+                  data-collapse-label="{{ t('collapse_to_hits', count=work['displayed_hits']) }}"
+                  data-loading-label="{{ t('loading') }}"
+                  data-load-failed-label="{{ t('load_failed') }}">
+            {{ t('expand_all_hits', count=work['total_hits']) }}
           </button>
           <span class="search-expand-error" role="status" aria-live="polite"></span>
         </div>
@@ -106,7 +108,7 @@
 
         if (fullHtml === null) {
           button.disabled = true;
-          button.textContent = '正在加载…';
+          button.textContent = button.dataset.loadingLabel;
           try {
             const response = await fetch(button.dataset.url, {
               headers: { 'X-Requested-With': 'fetch' }
@@ -115,7 +117,7 @@
             fullHtml = await response.text();
           } catch (fetchError) {
             button.textContent = button.dataset.expandLabel;
-            error.textContent = '加载失败，请稍后重试。';
+            error.textContent = button.dataset.loadFailedLabel;
             return;
           } finally {
             button.disabled = false;
@@ -171,8 +173,8 @@
   {% include "_back_to_top.html" %}
   {% endif %}
 
-  {% if not results %}<p class="empty">没有命中。可尝试更短的关键词，或确认相应版本已完成索引。</p>{% endif %}
+  {% if not results %}<p class="empty">{{ t('no_results') }}</p>{% endif %}
 {% else %}
-  <p class="empty">输入关键词开始检索。中文与日文支持任意子串（包括二字词），英文按单词匹配。</p>
+  <p class="empty">{{ t('search_prompt') }}</p>
 {% endif %}
 {% endblock %}

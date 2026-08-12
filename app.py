@@ -31,6 +31,7 @@ from werkzeug.utils import secure_filename
 
 from corpus import db
 from corpus.ingest import PARSERS, parse_file
+from corpus.i18n import compact_language_label, genre_label, translate
 
 # 显式给出模板与静态目录：打包成桌面程序后它们在 PyInstaller 的解包目录里，
 # Flask 默认按模块位置推断会找不到。db.RESOURCE_ROOT 两种情形都指向正确的位置。
@@ -50,6 +51,8 @@ ADMIN_PASSWORD = os.environ.get("CORPUS_ADMIN_PASSWORD") or ""
 
 # 仅当以 `python app.py` 本地启动时置为 True；gunicorn 等生产服务器下始终为 False。
 LOCAL_DEV = False
+UI_LANGUAGE_COOKIE = "murakami-corpus-ui-language"
+UI_LANGUAGES = {"zh", "en"}
 
 LANG_LABEL = {"zh": "中", "ja": "日", "en": "英"}
 LANG_NAME = {"zh": "中文", "ja": "日文", "en": "英文"}
@@ -90,9 +93,22 @@ def writes_allowed() -> bool:
     return LOCAL_DEV or bool(ADMIN_PASSWORD)
 
 
+def current_ui_language() -> str:
+    """返回当前界面语言；语料检索语言仍只使用查询参数 ``lang``。"""
+    ui_lang = request.cookies.get(UI_LANGUAGE_COOKIE)
+    return ui_lang if ui_lang in UI_LANGUAGES else "zh"
+
+
 @app.context_processor
 def inject_flags():
-    return {"writes_allowed": writes_allowed()}
+    ui_lang = current_ui_language()
+    return {
+        "writes_allowed": writes_allowed(),
+        "ui_lang": ui_lang,
+        "t": lambda key, **kwargs: translate(ui_lang, key, **kwargs),
+        "genre_label": lambda value: genre_label(value, ui_lang),
+        "compact_language_label": lambda code: compact_language_label(code, ui_lang),
+    }
 
 
 def admin_required(view):

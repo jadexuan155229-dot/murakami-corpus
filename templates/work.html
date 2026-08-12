@@ -13,28 +13,28 @@
   {% endwith %}
   <h1>{{ work['title_zh'] }} <span class="year">{{ work['year'] or '' }}</span></h1>
   <dl class="work-meta">
-    {% if work['title_ja'] %}<dt>日文版</dt><dd>{{ work['title_ja'] }}</dd>{% endif %}
-    {% if work['title_en'] %}<dt>英文版</dt><dd>{{ work['title_en'] }}</dd>{% endif %}
-    {% if work['genres']|json_list %}<dt>文体</dt><dd>{% for g in work['genres']|json_list %}<span class="tag">{{ g }}</span>{% endfor %}</dd>{% endif %}
-    {% if work['keywords']|json_list %}<dt>关键词</dt><dd>{% for k in work['keywords']|json_list %}<span class="tag">{{ k }}</span>{% endfor %}</dd>{% endif %}
-    {% if work['notes'] %}<dt>备注</dt><dd>{{ work['notes'] }}</dd>{% endif %}
+    {% if work['title_ja'] %}<dt>{{ t('japanese_edition') }}</dt><dd>{{ work['title_ja'] }}</dd>{% endif %}
+    {% if work['title_en'] %}<dt>{{ t('english_edition') }}</dt><dd>{{ work['title_en'] }}</dd>{% endif %}
+    {% if work['genres']|json_list %}<dt>{{ t('genre') }}</dt><dd>{% for g in work['genres']|json_list %}<span class="tag">{{ genre_label(g) }}</span>{% endfor %}</dd>{% endif %}
+    {% if work['keywords']|json_list %}<dt>{{ t('keywords') }}</dt><dd>{% for k in work['keywords']|json_list %}<span class="tag">{{ k }}</span>{% endfor %}</dd>{% endif %}
+    {% if work['notes'] %}<dt>{{ t('notes') }}</dt><dd>{{ work['notes'] }}</dd>{% endif %}
   </dl>
 
-  <h2>文本版本</h2>
+  <h2>{{ t('text_editions') }}</h2>
   {% if editions %}
   <table class="shelf edition-table">
-    <thead><tr><th class="edition-language">语言</th><th class="edition-book">分册</th><th class="edition-format">格式</th><th class="edition-filename">文件</th><th class="edition-count">片段数</th><th class="edition-index">索引</th><th class="edition-read">阅读</th><th class="edition-note">备注</th><th class="edition-delete">删除</th></tr></thead>
+    <thead><tr><th class="edition-language">{{ t('language') }}</th><th class="edition-book">{{ t('volume') }}</th><th class="edition-format">{{ t('format') }}</th><th class="edition-filename">{{ t('file') }}</th><th class="edition-count">{{ t('segment_count') }}</th><th class="edition-index">{{ t('index') }}</th><th class="edition-read">{{ t('read') }}</th><th class="edition-note">{{ t('notes') }}</th><th class="edition-delete">{{ t('delete') }}</th></tr></thead>
     <tbody>
     {% for e in editions %}
       <tr>
-        <td class="edition-language"><span class="lang-badge lang-{{ e['language'] }}">{{ e['language']|lang_label }}</span></td>
+        <td class="edition-language"><span class="lang-badge edition-language-badge lang-{{ e['language'] }}">{{ t('language_' ~ e['language']) }}</span></td>
         <td class="edition-book">{% if e['book_no'] is not none %}BOOK {{ e['book_no'] }}{% else %}—{% endif %}</td>
-        <td class="edition-format">{{ e['format'] }}{% if e['has_pages'] %} <span class="dim">带页码</span>{% endif %}</td>
+        <td class="edition-format">{{ e['format']|upper }}{% if e['has_pages'] %} · <span class="dim">{{ t('work_page_numbers') }}</span>{% endif %}</td>
         <td class="edition-filename dim"><span class="edition-filename-text" title="{{ e['filename'] or '' }}">{{ e['filename'] or '' }}</span></td>
         <td class="edition-count">{{ e['n_segments'] }}</td>
-        <td class="edition-index">{% if e['indexed_at'] %}<span class="ok">已索引</span>{% else %}<span class="dim">未索引</span>{% endif %}</td>
+        <td class="edition-index">{% if e['indexed_at'] %}<span class="ok">{{ t('indexed') }}</span>{% else %}<span class="dim">{{ t('not_indexed') }}</span>{% endif %}</td>
         <td class="edition-read">
-          {% if e['indexed_at'] and e['n_segments'] %}<a class="read-link" href="{{ url_for('read_edition', edition_id=e['id']) }}">阅读</a>{% endif %}
+          {% if e['indexed_at'] and e['n_segments'] %}<a class="read-link" href="{{ url_for('read_edition', edition_id=e['id']) }}">{{ t('read') }}</a>{% endif %}
         </td>
         <td class="edition-note">
           {% if writes_allowed %}
@@ -42,13 +42,13 @@
                   data-edition-note-toggle
                   aria-expanded="false"
                   aria-controls="edition-note-{{ e['id'] }}"
-                  {% if e['notes'] %}aria-label="备注（已有备注）"{% endif %}>备注{% if e['notes'] %}<span class="edition-note-dot" aria-hidden="true"></span>{% endif %}</button>
+                  {% if e['notes'] %}aria-label="{{ t('edition_note_with_content') }}"{% endif %}>{{ t('notes') }}{% if e['notes'] %}<span class="edition-note-dot" aria-hidden="true"></span>{% endif %}</button>
           {% endif %}
         </td>
         <td class="edition-delete">
           {% if writes_allowed %}
-          <form action="{{ url_for('delete_edition', work_id=work['id'], edition_id=e['id']) }}" method="post" onsubmit="return confirm('确定删除这个文本版本及其全部索引吗？此操作不可撤销。');">
-            <button class="delete-edition" type="submit">删除</button>
+          <form action="{{ url_for('delete_edition', work_id=work['id'], edition_id=e['id']) }}" method="post" onsubmit="return confirm('{{ t('delete_edition_confirm') }}');">
+            <button class="delete-edition" type="submit">{{ t('delete') }}</button>
           </form>
           {% endif %}
         </td>
@@ -57,11 +57,11 @@
       <tr class="edition-note-row" id="edition-note-{{ e['id'] }}" hidden>
         <td colspan="9">
           <form class="edition-note-panel" action="{{ url_for('update_edition_note', work_id=work['id'], edition_id=e['id']) }}" method="post">
-            <label for="edition-notes-{{ e['id'] }}">版本备注</label>
+            <label for="edition-notes-{{ e['id'] }}">{{ t('edition_note') }}</label>
             <textarea class="edition-note-textarea" id="edition-notes-{{ e['id'] }}" name="notes" rows="3">{{ e['notes'] or '' }}</textarea>
             <div class="edition-note-actions">
-              <button class="edition-note-cancel" type="button" data-edition-note-cancel>取消</button>
-              <button class="edition-note-save" type="submit">保存</button>
+              <button class="edition-note-cancel" type="button" data-edition-note-cancel>{{ t('cancel') }}</button>
+              <button class="edition-note-save" type="submit">{{ t('save') }}</button>
             </div>
           </form>
         </td>
@@ -70,24 +70,24 @@
     {% endfor %}
     </tbody>
   </table>
-  {% else %}<p class="empty">尚未上传任何文本。</p>{% endif %}
+  {% else %}<p class="empty">{{ t('no_text_editions') }}</p>{% endif %}
 
   {% if writes_allowed %}
-  <h2>上传文本（epub / txt / pdf）</h2>
+  <h2>{{ t('upload_text') }}</h2>
   <form class="upload" action="{{ url_for('upload', work_id=work['id']) }}" method="post" enctype="multipart/form-data">
     <input type="file" name="file" accept=".epub,.txt,.pdf" required>
     <select name="lang">
-      <option value="zh">中文</option>
-      <option value="ja">日文</option>
-      <option value="en">英文</option>
+      <option value="zh">{{ t('language_zh') }}</option>
+      <option value="ja">{{ t('language_ja') }}</option>
+      <option value="en">{{ t('language_en') }}</option>
     </select>
-    <select name="book_no" aria-label="分册">
-      <option value="">未指定</option>
+    <select name="book_no" aria-label="{{ t('volume') }}">
+      <option value="">{{ t('unspecified') }}</option>
       <option value="1">BOOK 1</option>
       <option value="2">BOOK 2</option>
       <option value="3">BOOK 3</option>
     </select>
-    <button type="submit">上传并建立索引</button>
+    <button type="submit">{{ t('upload_and_index') }}</button>
   </form>
   {% endif %}
 </article>

@@ -205,11 +205,11 @@ class SearchPageTests(unittest.TestCase):
         self.assertNotIn("#pdf-page-", body)
         self.assertRegex(
             body,
-            r'<td class="kwic-loc">\s*<span class="lang-badge lang-en">英</span>\s*EPUB Chapter\s*</td>',
+            r'<td class="kwic-loc">\s*<span class="lang-badge search-language-badge lang-en">英</span>\s*EPUB Chapter\s*</td>',
         )
         self.assertRegex(
             body,
-            r'<td class="kwic-loc">\s*<span class="lang-badge lang-en">英</span>\s*TXT Heading\s*</td>',
+            r'<td class="kwic-loc">\s*<span class="lang-badge search-language-badge lang-en">英</span>\s*TXT Heading\s*</td>',
         )
 
         reader = self.client.get(
@@ -518,8 +518,8 @@ class SearchPageTests(unittest.TestCase):
         self.assertIn('href="#edition-results-122">PDF · 带页码 · 2</a>', body)
         self.assertIn('id="edition-results-120"', body)
         self.assertIn('id="edition-results-122"', body)
-        self.assertIn("中 · EPUB", body)
-        self.assertIn("中 · PDF · 带页码", body)
+        self.assertIn("中文 · EPUB", body)
+        self.assertIn("中文 · PDF · 带页码", body)
         self.assertIn("kafka_zh.epub", body)
         self.assertIn("kafka_zh_printed.pdf", body)
         self.assertIn("p.3 · PDF 20", body)
@@ -587,16 +587,16 @@ class SearchPageTests(unittest.TestCase):
         self.assertIn('>BOOK 2 · EPUB · 1</a>', nav)
         self.assertIn('>BOOK 3 · EPUB · 1</a>', nav)
         self.assertIn('>EPUB · 1</a>', nav)
-        self.assertIn("日 · BOOK 1 · EPUB", body)
-        self.assertIn("日 · BOOK 2 · EPUB", body)
-        self.assertIn("日 · BOOK 3 · EPUB", body)
+        self.assertIn("日文 · BOOK 1 · EPUB", body)
+        self.assertIn("日文 · BOOK 2 · EPUB", body)
+        self.assertIn("日文 · BOOK 3 · EPUB", body)
         unnumbered = re.search(
             r'<section class="search-edition-group" id="edition-results-120">'
             r'(?P<body>.*?)</section>',
             body,
             re.DOTALL,
         ).group("body")
-        self.assertIn("日 · EPUB", unnumbered)
+        self.assertIn("日文 · EPUB", unnumbered)
         self.assertNotIn("BOOK", unnumbered)
 
     def test_initial_and_work_links_url_encode_the_original_query(self):

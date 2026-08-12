@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="zh">
+<html lang="{{ ui_lang }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}村上春树语料库{% endblock %}</title>
+<title>{% block title %}{{ t('app_title') }}{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='vintage-paper.css') }}">
-<script src="{{ url_for('static', filename='theme-switcher.js') }}" defer></script>
+<script src="{{ url_for('static', filename='theme-switcher.js', v='ui-controls-2') }}" defer></script>
+<script src="{{ url_for('static', filename='ui-language.js', v='ui-controls-2') }}" defer></script>
 </head>
 <body class="theme-vintage-paper">
 <script>
@@ -21,27 +22,32 @@
 })();
 </script>
 <header class="site-header">
-  <button type="button" id="nav-back" class="nav-back" title="返回上一页（Alt+←）" aria-label="返回上一页" hidden>←</button>
-  <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>羊男的图书馆<span class="brand-sub">村上春树研究语料库</span></a>
+  <button type="button" id="nav-back" class="nav-back" title="{{ t('back_title') }}" aria-label="{{ t('back_aria') }}" hidden>←</button>
+  <a class="brand" href="{{ url_for('index') }}"><span class="brand-mark" aria-hidden="true"></span>{{ t('brand_name') }}<span class="brand-sub">{{ t('brand_subtitle') }}</span></a>
   <form class="searchbar" action="{{ url_for('search') }}" method="get">
-    <input type="search" name="q" value="{{ q or '' }}" placeholder="跨全部藏书检索：井 / 羊男 / 図書館 / library…" autofocus>
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="{{ t('search_placeholder') }}" autofocus>
     <select name="lang">
-      <option value="">全部语言</option>
-      <option value="zh" {% if lang=='zh' %}selected{% endif %}>中文</option>
-      <option value="ja" {% if lang=='ja' %}selected{% endif %}>日文</option>
-      <option value="en" {% if lang=='en' %}selected{% endif %}>英文</option>
+      <option value="">{{ t('all_languages') }}</option>
+      <option value="zh" {% if lang=='zh' %}selected{% endif %}>{{ t('language_zh') }}</option>
+      <option value="ja" {% if lang=='ja' %}selected{% endif %}>{{ t('language_ja') }}</option>
+      <option value="en" {% if lang=='en' %}selected{% endif %}>{{ t('language_en') }}</option>
     </select>
-    <button type="submit">检索</button>
+    <button type="submit">{{ t('search') }}</button>
   </form>
   <button type="button" class="theme-switcher" data-theme-switcher
-          title="切换到原版夜色主题" aria-label="切换到原版夜色主题" aria-pressed="true">原版夜色</button>
+          data-theme-vintage-label="{{ t('theme_vintage') }}" data-theme-classic-label="{{ t('theme_classic') }}"
+          data-theme-to-vintage="{{ t('theme_to_vintage') }}" data-theme-to-classic="{{ t('theme_to_classic') }}"
+          title="{{ t('theme_to_vintage') }}" aria-label="{{ t('theme_to_vintage') }}" aria-pressed="true">{{ t('theme_vintage') }}</button>
+  <button type="button" class="ui-language-switcher" data-ui-language-switcher
+          data-next-ui-lang="{{ 'en' if ui_lang == 'zh' else 'zh' }}"
+          title="{{ t('ui_language_switch') }}" aria-label="{{ t('ui_language_switch') }}">{{ 'EN' if ui_lang == 'zh' else '中文' }}</button>
 </header>
 <main class="{% block main_class %}{% endblock %}">
 {% block content %}{% endblock %}
 </main>
 <footer class="site-footer">
-  {% if writes_allowed %}私人研究工具 · 入库文本仅限本地个人研究使用{% else %}开源研究工具 ·
-  <a href="https://github.com/jadexuan155229-dot/murakami-corpus">源码</a>{% endif %}
+  {% if writes_allowed %}{{ t('footer_private') }}{% else %}{{ t('footer_public') }}
+  <a href="https://github.com/jadexuan155229-dot/murakami-corpus">{{ t('source') }}</a>{% endif %}
 </footer>
 <script>
 (() => {

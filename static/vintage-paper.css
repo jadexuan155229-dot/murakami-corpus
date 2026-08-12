@@ -211,18 +211,21 @@
 }
 .theme-vintage-paper button:hover { background: var(--vintage-rust-deep); border-color: #6f3b30; }
 .theme-vintage-paper button:active { transform: translate(1px, 1px); box-shadow: inset 0 1px 2px rgba(45, 30, 25, .18); }
-.theme-vintage-paper .theme-switcher {
+.theme-vintage-paper .theme-switcher,
+.theme-vintage-paper .ui-language-switcher {
   border-color: #9d927a;
   background: #e4dbc7;
   color: #484942;
   box-shadow: none;
 }
-.theme-vintage-paper .theme-switcher:hover {
+.theme-vintage-paper .theme-switcher:hover,
+.theme-vintage-paper .ui-language-switcher:hover {
   border-color: var(--vintage-rust);
   background: #d8dfda;
   color: var(--vintage-rust-deep);
 }
-.theme-vintage-paper .theme-switcher:active { box-shadow: none; }
+.theme-vintage-paper .theme-switcher:active,
+.theme-vintage-paper .ui-language-switcher:active { box-shadow: none; }
 .theme-vintage-paper .upload select,
 .theme-vintage-paper input[type=file],
 .theme-vintage-paper select {
