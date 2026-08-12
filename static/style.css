@@ -634,26 +634,29 @@ table.kwic tr:hover td { background: rgba(43, 38, 32, .045); }
 
 /* 返回顶部（首页、检索结果页与阅读页） */
 .back-to-top {
-  position: fixed; right: 1.4rem; bottom: 1.4rem; z-index: 50;
-  width: 2.6rem; height: 2.6rem; padding: 0;
-  border: 1px solid var(--rule); border-radius: 50%;
-  background: var(--paper-high); color: var(--wine);
-  font-size: 1.05rem; line-height: 1; cursor: pointer;
-  box-shadow: 0 2px 8px rgba(43, 38, 32, .12);
-  opacity: 0; visibility: hidden; transform: translateY(4px);
+  position: fixed; left: auto; right: 26px; bottom: 24px; z-index: 50;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; padding: 0;
+  border: 1px solid rgba(49, 63, 81, .28); border-radius: 50%;
+  background: rgba(238, 236, 227, .92); color: #465466;
+  line-height: 1; cursor: pointer;
+  box-shadow: 0 2px 7px rgba(35, 44, 55, .12);
+  opacity: 0; visibility: hidden; transform: translateY(6px);
   transition: opacity .25s ease, visibility .25s ease, transform .25s ease,
-              border-color .25s ease, box-shadow .25s ease;
+              background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.back-to-top svg {
+  width: 15px; height: 15px;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .back-to-top.is-visible { opacity: 1; visibility: visible; transform: translateY(0); }
 .back-to-top:hover {
   transform: translateY(-2px);
-  border-color: var(--wine); color: var(--wine-deep);
-  box-shadow: 0 4px 12px rgba(43, 38, 32, .2);
+  background: rgba(226, 224, 215, .96);
+  border-color: rgba(49, 63, 81, .4);
+  box-shadow: 0 3px 9px rgba(35, 44, 55, .15);
 }
-@media (max-width: 640px) {
-  .back-to-top {
-    width: 2.2rem; height: 2.2rem; font-size: .95rem;
-    right: max(.9rem, env(safe-area-inset-right));
-    bottom: max(.9rem, env(safe-area-inset-bottom));
-  }
+.back-to-top:active {
+  transform: translateY(-1px);
 }
