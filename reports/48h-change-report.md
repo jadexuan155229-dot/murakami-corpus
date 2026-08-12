@@ -2,6 +2,32 @@
 
 > 说明：当前工作区未检测到可用的 Git 历史记录，因此本报告基于最近文件更新时间、关键代码和测试文件的现状整理。
 
+## 最新增补：edition 分册编号支持（2026-08-12）
+
+提交：`2316803 feat: add edition book number support`
+
+本次为同一语言下的分册作品增加 edition 级 `book_no`，用于表示 `BOOK 1`、`BOOK 2`、`BOOK 3`；未指定时保持 `NULL`。
+
+涉及文件：
+- `corpus/db.py`
+- `database_schema.sql`
+- `app.py`
+- `templates/work.html`
+- `templates/_search_hits.html`
+- `tests/test_upload.py`
+- `tests/test_search.py`
+
+主要内容：
+- `editions` 表新增 nullable `INTEGER book_no`。`init_db()` 通过 `PRAGMA table_info(editions)` 检查旧库；缺少字段时使用 `ALTER TABLE` 追加，已有版本保持 `NULL`。
+- 上传表单新增“未指定 / BOOK 1 / BOOK 2 / BOOK 3”选择框；后端仅接受空值或 1–3，未指定时写入 `NULL`。
+- 搜索查询返回 `e.book_no`，既有 language → edition → chapter/page 分组不变。同一语言内，编号版本按 `book_no` 升序显示，未编号版本排在其后。
+- 搜索结果中，编号版本导航显示为 `BOOK 1 · EPUB · 命中数`，版本标题显示为 `日 · BOOK 1 · EPUB`；未编号版本保持原有文本格式。
+- 作品详情“文本版本”表新增“分册”列，显示 `BOOK n` 或 `—`。
+
+未修改：作品元数据、`data/`、works/segments/FTS 结构、reader 页面，以及既有 edition 数据。
+
+验证：执行 `.venv/bin/python -m pytest`，**142 项全部通过**。测试覆盖旧数据库自动迁移、未指定分册上传、BOOK 1 保存、BOOK 1/2/3 搜索排序与标签，以及普通版本无 `BOOK` 标签回归。
+
 ## 1. 本次重点变更概览
 
 过去 48 小时内，这个项目的改动主要集中在以下 5 个方向：
