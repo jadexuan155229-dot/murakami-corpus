@@ -213,6 +213,23 @@ table.shelf tbody tr:hover { background: var(--wash); }
   color: var(--ink-soft); font-size: .82rem; letter-spacing: .12em;
   margin-right: .5rem;
 }
+.genre-filter-mode {
+  padding: 0 .5em; margin: 0 .3rem 0 0; border-color: var(--wine);
+  background: var(--paper-high); color: var(--wine-deep); font-size: .75rem;
+  line-height: 1.7; letter-spacing: .06em;
+}
+.genre-filter-mode:hover { border-color: var(--ink-soft); background: var(--wash); color: var(--ink); }
+.genre-filter-mode.is-active {
+  border-color: var(--wine-deep); background: var(--wine-deep); color: #fdf6ee;
+}
+.theme-vintage-paper .genre-filter-mode {
+  border-color: var(--vintage-rust-deep); background: #eee6d5;
+  color: var(--vintage-rust-deep); box-shadow: none;
+}
+.theme-vintage-paper .genre-filter-mode:hover { border-color: var(--vintage-rust-deep); background: #e4dbc7; color: var(--vintage-rust-deep); }
+.theme-vintage-paper .genre-filter-mode.is-active {
+  border-color: var(--vintage-rust-deep); background: var(--vintage-rust-deep); color: #f5eedc;
+}
 .genre-filter-tag {
   cursor: pointer; letter-spacing: normal; line-height: 1.7; margin: 0;
 }
@@ -220,6 +237,8 @@ table.shelf tbody tr:hover { background: var(--wash); }
   border-color: var(--tag-fg, var(--ink-soft));
   background: color-mix(in srgb, var(--tag-bg, var(--paper-high)) 88%, var(--ink));
 }
+.tag.is-excluded { opacity: .78; text-decoration: line-through; text-decoration-thickness: 1px; }
+.tag.is-excluded::before { content: "× "; text-decoration: none; }
 .genre-filter-status { color: var(--ink-soft); font-size: .9rem; margin: 0 0 .9rem; }
 .genre-filter-empty { margin-top: 2.5rem; }
 .ok { color: var(--pine); }

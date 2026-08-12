@@ -25,6 +25,7 @@
 {% if all_genres %}
 <div class="genre-filter" role="group" aria-label="按文体筛选">
   <span class="genre-filter-label">文体筛选</span>
+  <button type="button" class="genre-filter-mode" aria-pressed="false">排除</button>
   <button type="button" class="tag genre-filter-tag is-active" data-genre="" aria-pressed="true">全部</button>
   {% for g in all_genres %}
   <button type="button" class="tag genre-filter-tag{% if g in genre_slugs %} tag-{{ genre_slugs[g] }}{% endif %}"
@@ -45,41 +46,65 @@
       <td><a class="work-link" href="{{ url_for('work_detail', work_id=w['id']) }}">{{ w['title_zh'] }}</a>
         {% if w['title_ja'] %}<span class="alt-title">{{ w['title_ja'].split(' ')[0] }}</span>{% endif %}
       </td>
-      <td class="genres">{% for g in w['genres']|json_list %}<span class="tag{% if g in genre_slugs %} tag-{{ genre_slugs[g] }}{% endif %}" data-genre="{{ g }}" role="button" tabindex="0">{{ g }}</span>{% endfor %}</td>
+      <td class="genres">{% for g in w['genres']|json_list %}<span class="tag{% if g in genre_slugs %} tag-{{ genre_slugs[g] }}{% endif %}" data-genre="{{ g }}" role="button" tabindex="0" aria-pressed="false">{{ g }}</span>{% endfor %}</td>
       <td class="idx">{% if w['n_indexed'] %}<span class="ok">{{ w['n_indexed'] }} 已索引</span>{% elif w['n_editions'] %}{{ w['n_editions'] }} 个版本待索引{% else %}<span class="dim">尚无文件</span>{% endif %}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-<p class="empty genre-filter-empty" hidden>该文体下暂无作品。</p>
+<p class="empty genre-filter-empty" hidden>当前筛选条件下暂无作品。</p>
 
 <script>
 (() => {
   const table = document.querySelector("table.shelf");
   const rows = table ? [...table.querySelectorAll("tbody tr")] : [];
   const filterTags = [...document.querySelectorAll(".genre-filter-tag")];
+  const rowTags = [...document.querySelectorAll(".genres .tag[data-genre]")];
+  const modeButton = document.querySelector(".genre-filter-mode");
   const status = document.querySelector(".genre-filter-status");
   const emptyMsg = document.querySelector(".genre-filter-empty");
-  if (!rows.length || !filterTags.length) return;
+  if (!rows.length || !filterTags.length || !modeButton) return;
 
   let current = "";
+  let excludeMode = false;
+  const excludedGenres = new Set();
 
-  const apply = (genre) => {
-    current = genre;
+  const updateControls = () => {
+    filterTags.forEach((btn) => {
+      const genre = btn.dataset.genre || "";
+      const pressed = excludeMode
+        ? (genre ? excludedGenres.has(genre) : excludedGenres.size === 0)
+        : genre === current;
+      btn.classList.toggle("is-active", pressed && (!excludeMode || !genre));
+      btn.classList.toggle("is-excluded", excludeMode && Boolean(genre) && excludedGenres.has(genre));
+      btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+    });
+    rowTags.forEach((tag) => {
+      const genre = tag.dataset.genre || "";
+      const pressed = excludeMode ? excludedGenres.has(genre) : genre === current;
+      tag.classList.toggle("is-excluded", excludeMode && excludedGenres.has(genre));
+      tag.setAttribute("aria-pressed", pressed ? "true" : "false");
+    });
+    modeButton.classList.toggle("is-active", excludeMode);
+    modeButton.setAttribute("aria-pressed", excludeMode ? "true" : "false");
+  };
+
+  const apply = () => {
     let shown = 0;
     rows.forEach((row) => {
       const genres = (row.dataset.genres || "").split("|");
-      const match = !genre || genres.includes(genre);
+      const match = excludeMode
+        ? !genres.some((genre) => excludedGenres.has(genre))
+        : !current || genres.includes(current);
       row.hidden = !match;
       if (match) shown += 1;
     });
-    filterTags.forEach((btn) => {
-      const active = (btn.dataset.genre || "") === genre;
-      btn.classList.toggle("is-active", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-    });
-    if (genre) {
-      status.textContent = "文体：" + genre + " · " + shown + " 部作品";
+    updateControls();
+    if (excludeMode && excludedGenres.size) {
+      status.textContent = "已排除：" + [...excludedGenres].join("、") + " · 当前显示 " + shown + " 部作品";
+      status.hidden = false;
+    } else if (current) {
+      status.textContent = "文体：" + current + " · " + shown + " 部作品";
       status.hidden = false;
     } else {
       status.hidden = true;
@@ -88,7 +113,27 @@
     emptyMsg.hidden = shown !== 0;
   };
 
-  const toggle = (genre) => apply(genre && genre === current ? "" : genre);
+  const toggle = (genre) => {
+    if (excludeMode) {
+      if (!genre) {
+        excludedGenres.clear();
+      } else if (excludedGenres.has(genre)) {
+        excludedGenres.delete(genre);
+      } else {
+        excludedGenres.add(genre);
+      }
+    } else {
+      current = genre && genre === current ? "" : genre;
+    }
+    apply();
+  };
+
+  modeButton.addEventListener("click", () => {
+    excludeMode = !excludeMode;
+    current = "";
+    excludedGenres.clear();
+    apply();
+  });
 
   filterTags.forEach((btn) =>
     btn.addEventListener("click", () => toggle(btn.dataset.genre || "")));
