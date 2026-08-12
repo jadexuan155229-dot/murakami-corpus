@@ -23,7 +23,7 @@
   <h2>文本版本</h2>
   {% if editions %}
   <table class="shelf edition-table">
-    <thead><tr><th class="edition-language">语言</th><th class="edition-book">分册</th><th class="edition-format">格式</th><th class="edition-filename">文件</th><th class="edition-count">片段数</th><th class="edition-index">索引</th><th class="edition-read">阅读</th><th class="edition-delete">删除</th></tr></thead>
+    <thead><tr><th class="edition-language">语言</th><th class="edition-book">分册</th><th class="edition-format">格式</th><th class="edition-filename">文件</th><th class="edition-count">片段数</th><th class="edition-index">索引</th><th class="edition-read">阅读</th><th class="edition-note">备注</th><th class="edition-delete">删除</th></tr></thead>
     <tbody>
     {% for e in editions %}
       <tr>
@@ -36,6 +36,15 @@
         <td class="edition-read">
           {% if e['indexed_at'] and e['n_segments'] %}<a class="read-link" href="{{ url_for('read_edition', edition_id=e['id']) }}">阅读</a>{% endif %}
         </td>
+        <td class="edition-note">
+          {% if writes_allowed %}
+          <button class="edition-note-toggle" type="button"
+                  data-edition-note-toggle
+                  aria-expanded="false"
+                  aria-controls="edition-note-{{ e['id'] }}"
+                  {% if e['notes'] %}aria-label="备注（已有备注）"{% endif %}>备注{% if e['notes'] %}<span class="edition-note-dot" aria-hidden="true"></span>{% endif %}</button>
+          {% endif %}
+        </td>
         <td class="edition-delete">
           {% if writes_allowed %}
           <form action="{{ url_for('delete_edition', work_id=work['id'], edition_id=e['id']) }}" method="post" onsubmit="return confirm('确定删除这个文本版本及其全部索引吗？此操作不可撤销。');">
@@ -44,6 +53,20 @@
           {% endif %}
         </td>
       </tr>
+      {% if writes_allowed %}
+      <tr class="edition-note-row" id="edition-note-{{ e['id'] }}" hidden>
+        <td colspan="9">
+          <form class="edition-note-panel" action="{{ url_for('update_edition_note', work_id=work['id'], edition_id=e['id']) }}" method="post">
+            <label for="edition-notes-{{ e['id'] }}">版本备注</label>
+            <textarea class="edition-note-textarea" id="edition-notes-{{ e['id'] }}" name="notes" rows="3">{{ e['notes'] or '' }}</textarea>
+            <div class="edition-note-actions">
+              <button class="edition-note-cancel" type="button" data-edition-note-cancel>取消</button>
+              <button class="edition-note-save" type="submit">保存</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
     {% endfor %}
     </tbody>
   </table>
@@ -68,4 +91,38 @@
   </form>
   {% endif %}
 </article>
+{% if writes_allowed %}
+<script>
+(() => {
+  const toggles = [...document.querySelectorAll('[data-edition-note-toggle]')];
+  const close = (toggle) => {
+    const drawer = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!drawer) return;
+    drawer.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  for (const toggle of toggles) {
+    toggle.addEventListener('click', () => {
+      const drawer = document.getElementById(toggle.getAttribute('aria-controls'));
+      if (!drawer) return;
+      const isOpen = !drawer.hidden;
+      for (const other of toggles) {
+        if (other !== toggle) close(other);
+      }
+      drawer.hidden = isOpen;
+      toggle.setAttribute('aria-expanded', String(!isOpen));
+    });
+  }
+
+  document.querySelectorAll('[data-edition-note-cancel]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const drawer = button.closest('.edition-note-row');
+      const toggle = toggles.find((item) => item.getAttribute('aria-controls') === drawer?.id);
+      if (toggle) close(toggle);
+    });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

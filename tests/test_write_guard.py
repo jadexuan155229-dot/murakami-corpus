@@ -60,6 +60,12 @@ class WriteGuardTests(unittest.TestCase):
             "/work/1/edition/1/delete", headers=headers or {}
         )
 
+    def _post_note(self, headers=None):
+        return self.client.post(
+            "/work/1/edition/1/note", data={"notes": "test note"},
+            headers=headers or {},
+        )
+
     def _set_password(self, password: str):
         p = patch.object(webapp, "ADMIN_PASSWORD", password)
         p.start()
@@ -74,6 +80,10 @@ class WriteGuardTests(unittest.TestCase):
     def test_delete_forbidden_without_admin_password(self):
         self._set_password("")
         self.assertEqual(self._post_delete().status_code, 403)
+
+    def test_note_forbidden_without_admin_password(self):
+        self._set_password("")
+        self.assertEqual(self._post_note().status_code, 403)
 
     def test_upload_form_hidden_without_admin_password(self):
         self._set_password("")

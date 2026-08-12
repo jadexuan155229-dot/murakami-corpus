@@ -306,16 +306,114 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertIn('class="edition-count">2</td>', body)
         self.assertIn('class="edition-index"><span class="ok">已索引</span>', body)
         self.assertIn('<th class="edition-read">阅读</th>', body)
+        self.assertIn('<th class="edition-note">备注</th>', body)
         self.assertIn('<th class="edition-delete">删除</th>', body)
         self.assertIn('<td class="edition-read">', body)
+        self.assertIn('<td class="edition-note">', body)
         self.assertIn('<td class="edition-delete">', body)
-        self.assertLess(body.index('<td class="edition-read">'), body.index('<td class="edition-delete">'))
+        self.assertLess(body.index('<td class="edition-read">'), body.index('<td class="edition-note">'))
+        self.assertLess(body.index('<td class="edition-note">'), body.index('<td class="edition-delete">'))
         self.assertNotIn('class="edition-actions"', body)
         self.assertIn('class="read-link" href="/edition/1/read">阅读</a>', body)
         self.assertIn('action="/work/1/edition/1/delete" method="post"', body)
         self.assertIn("确定删除这个文本版本及其全部索引吗？此操作不可撤销。", body)
         self.assertIn('class="delete-edition" type="submit">删除</button>', body)
         self.assertIn('action="/work/1/edition/3/delete" method="post"', body)
+
+    def test_work_page_renders_note_drawers_and_existing_note_indicator(self):
+        no_note_body = self.client.get("/work/1").get_data(as_text=True)
+        self.assertIn('<th class="edition-book">分册</th>', no_note_body)
+        self.assertNotIn('aria-label="备注（已有备注）"', no_note_body)
+
+        con = db.connect()
+        con.execute("UPDATE editions SET notes=?, book_no=? WHERE id=1", ("校对版备注", 1))
+        con.commit()
+        con.close()
+
+        body = self.client.get("/work/1").get_data(as_text=True)
+        self.assertIn('class="edition-book">BOOK 1</td>', body)
+        self.assertIn('class="edition-note-toggle"', body)
+        self.assertIn('aria-label="备注（已有备注）"', body)
+        self.assertIn('class="edition-note-dot"', body)
+        self.assertIn('id="edition-note-1" hidden', body)
+        self.assertIn('colspan="9"', body)
+        self.assertIn('action="/work/1/edition/1/note" method="post"', body)
+        self.assertIn(
+            'class="edition-note-textarea" id="edition-notes-1" name="notes" rows="3">校对版备注</textarea>',
+            body,
+        )
+        self.assertIn('aria-expanded="false"', body)
+        self.assertIn('aria-controls="edition-note-1"', body)
+
+    def test_note_route_saves_and_clears_notes_without_changing_text_or_index(self):
+        con = db.connect()
+        before_segments = [
+            tuple(row) for row in con.execute(
+                "SELECT id, edition_id, seq, chapter, content FROM segments WHERE edition_id=1"
+            )
+        ]
+        before_fts = [
+            tuple(row) for row in con.execute(
+                "SELECT segment_id, body FROM segments_fts WHERE segment_id IN (11, 12)"
+            )
+        ]
+        con.close()
+
+        saved = self.client.post(
+            "/work/1/edition/1/note", data={"notes": "  版本校注  "}
+        )
+        self.assertEqual(saved.status_code, 302)
+        self.assertTrue(saved.headers["Location"].endswith("/work/1"))
+
+        con = db.connect()
+        self.assertEqual(
+            con.execute("SELECT notes FROM editions WHERE id=1").fetchone()["notes"],
+            "版本校注",
+        )
+        after_segments = [
+            tuple(row) for row in con.execute(
+                "SELECT id, edition_id, seq, chapter, content FROM segments WHERE edition_id=1"
+            )
+        ]
+        after_fts = [
+            tuple(row) for row in con.execute(
+                "SELECT segment_id, body FROM segments_fts WHERE segment_id IN (11, 12)"
+            )
+        ]
+        con.close()
+        self.assertEqual(after_segments, before_segments)
+        self.assertEqual(after_fts, before_fts)
+
+        cleared = self.client.post(
+            "/work/1/edition/1/note", data={"notes": "  \n  "}
+        )
+        self.assertEqual(cleared.status_code, 302)
+        con = db.connect()
+        self.assertIsNone(
+            con.execute("SELECT notes FROM editions WHERE id=1").fetchone()["notes"]
+        )
+        con.close()
+
+    def test_note_route_rejects_an_edition_owned_by_another_work_without_changes(self):
+        con = db.connect()
+        con.execute("UPDATE editions SET notes=? WHERE id=1", ("原备注",))
+        con.commit()
+        con.close()
+
+        response = self.client.post(
+            "/work/2/edition/1/note", data={"notes": "不应写入"}
+        )
+
+        self.assertEqual(response.status_code, 404)
+        con = db.connect()
+        self.assertEqual(
+            con.execute("SELECT notes FROM editions WHERE id=1").fetchone()["notes"],
+            "原备注",
+        )
+        con.close()
+
+    def test_note_route_is_post_only(self):
+        self.assertEqual(self.client.get("/work/1/edition/1/note").status_code, 405)
 
     def test_success_and_missing_file_flash_messages(self):
         success = self.client.post(

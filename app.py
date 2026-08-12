@@ -437,6 +437,21 @@ def delete_edition(work_id, edition_id):
     return redirect(url_for("work_detail", work_id=work_id))
 
 
+@app.route(
+    "/work/<int:work_id>/edition/<int:edition_id>/note",
+    methods=["POST"],
+)
+@admin_required
+def update_edition_note(work_id, edition_id):
+    notes = (request.form.get("notes") or "").strip() or None
+    try:
+        db.update_edition_notes(work_id, edition_id, notes)
+    except (db.WorkNotFoundError, db.EditionNotFoundError, db.EditionWorkMismatchError):
+        abort(404)
+    flash("版本备注已保存。", "success")
+    return redirect(url_for("work_detail", work_id=work_id))
+
+
 @app.route("/edition/<int:edition_id>/read", endpoint="read_edition")
 @app.route(
     "/edition/<int:edition_id>/read/<int:segment_id>",

@@ -346,6 +346,42 @@ class EditionFileRestoreError(EditionDeleteError):
     pass
 
 
+def update_edition_notes(
+    work_id: int,
+    edition_id: int,
+    notes: str | None,
+) -> None:
+    """只更新归属作品下一个 edition 的备注，不触及文本或索引。"""
+    con = connect()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        work = con.execute(
+            "SELECT id FROM works WHERE id=?", (work_id,)
+        ).fetchone()
+        if work is None:
+            raise WorkNotFoundError(f"作品 {work_id} 不存在")
+        edition = con.execute(
+            "SELECT work_id FROM editions WHERE id=?", (edition_id,)
+        ).fetchone()
+        if edition is None:
+            raise EditionNotFoundError(f"版本 {edition_id} 不存在")
+        if edition["work_id"] != work_id:
+            raise EditionWorkMismatchError(
+                f"版本 {edition_id} 不属于作品 {work_id}"
+            )
+        con.execute(
+            "UPDATE editions SET notes=? WHERE id=? AND work_id=?",
+            (notes, edition_id, work_id),
+        )
+        con.commit()
+    except Exception:
+        if con.in_transaction:
+            con.rollback()
+        raise
+    finally:
+        con.close()
+
+
 def work_storage_folder(work_id: int, title_zh: str) -> str:
     """返回作品原始文件目录名，不改变数据库中的作品标题。"""
     title = _STORAGE_TITLE_INVALID.sub("_", title_zh or "")
