@@ -428,6 +428,11 @@
   line-height: 1.43;
 }
 .theme-vintage-paper .toc-item:hover { background: rgba(112, 132, 130, .15); }
+.theme-vintage-paper .toc-subitem {
+  margin-left: .85rem; padding: .18rem .68rem .18rem .58rem;
+  color: #66645c; font-size: .76rem; line-height: 1.4;
+}
+.theme-vintage-paper .toc-subitem.toc-current { border-left-width: 2px; }
 .theme-vintage-paper .toc-frontmatter,
 .theme-vintage-paper .toc-backmatter { color: #66645c; font-size: .8rem; }
 .theme-vintage-paper .toc-part {

@@ -914,6 +914,9 @@ _STANDALONE_WEB_ADDRESS = re.compile(
     r"(?:[/#?][^\s]*)?$",
     re.IGNORECASE,
 )
+_NUMBERED_SUBSECTION_TITLE = re.compile(r"^([0-9０-９]+)[ \u3000]+\S")
+_SYMBOL_SUBSECTION_TITLE = re.compile(r"^[◎●○◆◇■□★☆※]")
+_MAX_SUBSECTION_TITLE_LENGTH = 80
 
 
 def _has_readable_segment_content(content: str | None) -> bool:
@@ -924,6 +927,63 @@ def _has_readable_segment_content(content: str | None) -> bool:
     if _STANDALONE_WEB_ADDRESS.fullmatch(text):
         return False
     return True
+
+
+def _subsection_title_kind(content: str | None) -> tuple[str, int | None] | None:
+    """保守识别可作为阅读器二级目录的独立标题 segment。"""
+    title = (content or "").strip()
+    if (
+        not title
+        or len(title) > _MAX_SUBSECTION_TITLE_LENGTH
+        or "\n" in title
+        or "\r" in title
+    ):
+        return None
+
+    numbered = _NUMBERED_SUBSECTION_TITLE.match(title)
+    if numbered:
+        digits = numbered.group(1).translate(
+            str.maketrans("０１２３４５６７８９", "0123456789")
+        )
+        return "numbered", int(digits)
+    if _SYMBOL_SUBSECTION_TITLE.match(title):
+        return "symbol", None
+    return None
+
+
+def _build_reader_subsections(rows: list[dict]) -> list[dict]:
+    """从同一连续 chapter block 的内容中推断二级目录，不写入数据库。"""
+    numbered: list[tuple[dict, int]] = []
+    symbols: list[dict] = []
+    for row in rows:
+        detected = _subsection_title_kind(row["content"])
+        if detected is None:
+            continue
+        kind, number = detected
+        if kind == "numbered":
+            numbered.append((row, number))
+        else:
+            symbols.append(row)
+
+    # 仅接受至少两个、从 1 连续递增的编号标题，避免把普通短正文误作目录。
+    numbered_rows: list[dict] = []
+    if len(numbered) >= 2 and [number for _row, number in numbered] == list(
+        range(1, len(numbered) + 1)
+    ):
+        numbered_rows = [row for row, _number in numbered]
+
+    subsection_rows = sorted(
+        [*numbered_rows, *symbols], key=lambda row: (row["seq"], row["id"])
+    )
+    return [
+        {
+            "title": row["content"].strip(),
+            "first_segment_id": row["id"],
+            "first_seq": row["seq"],
+            "is_current": False,
+        }
+        for row in subsection_rows
+    ]
 
 
 def _explicit_chapter_kind(chapter: str | None) -> str:
@@ -973,10 +1033,12 @@ def get_reader_blocks(con: sqlite3.Connection, edition_id: int) -> list[dict]:
                 "kind": _explicit_chapter_kind(row["chapter"]),
                 "is_current": False,
                 "_segment_ids": [row["id"]],
+                "_subsection_rows": [dict(row)],
             })
         else:
             blocks[-1]["last_seq"] = row["seq"]
             blocks[-1]["_segment_ids"].append(row["id"])
+            blocks[-1]["_subsection_rows"].append(dict(row))
 
     chapter_indexes = [i for i, block in enumerate(blocks) if block["kind"] == "chapter"]
     if chapter_indexes:
@@ -988,6 +1050,13 @@ def get_reader_blocks(con: sqlite3.Connection, edition_id: int) -> list[dict]:
                 block["kind"] = "frontmatter"
             elif index > last_chapter:
                 block["kind"] = "backmatter"
+    for block in blocks:
+        subsection_rows = block.pop("_subsection_rows")
+        block["subsections"] = (
+            _build_reader_subsections(subsection_rows)
+            if block["kind"] == "chapter"
+            else []
+        )
     return blocks
 
 
@@ -1030,6 +1099,14 @@ def get_reader_chapter(
     ).fetchone()
     if target is None:
         return None
+    for subsection in current["subsections"]:
+        subsection["is_current"] = subsection["first_seq"] <= target["seq"]
+    current_subsections = [
+        subsection for subsection in current["subsections"] if subsection["is_current"]
+    ]
+    if current_subsections:
+        for subsection in current["subsections"]:
+            subsection["is_current"] = subsection is current_subsections[-1]
     block_segment_ids = set(current["_segment_ids"])
     segments = [
         row for row in con.execute(

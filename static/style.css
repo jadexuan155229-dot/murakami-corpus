@@ -534,6 +534,11 @@ html[lang="en"] .work-meta { grid-template-columns: 7.25em 1fr; }
   text-decoration: none; overflow-wrap: anywhere;
 }
 .toc-item:hover { background: rgba(43, 38, 32, .05); color: inherit; }
+.toc-subitem {
+  margin-left: .9rem; padding: .2rem .75rem .2rem .65rem; border-left-width: 2px;
+  color: var(--ink-soft); font-size: .8rem; line-height: 1.4;
+}
+.toc-subitem.toc-current { border-left-width: 2px; }
 .toc-frontmatter, .toc-backmatter { color: var(--ink-soft); font-size: .82rem; }
 .toc-part {
   margin-top: .35rem; padding-top: .55rem; color: var(--ink-soft);

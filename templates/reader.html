@@ -23,6 +23,11 @@
           <a class="toc-item toc-{{ item['kind'] }}{% if item['is_current'] %} toc-current{% endif %}"
              href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=item['first_segment_id'], _anchor='segment-' ~ item['first_segment_id']) }}"
              {% if item['is_current'] %}aria-current="page"{% endif %}>{{ item['title'] }}</a>
+          {% for subsection in item['subsections'] %}
+            <a class="toc-item toc-subitem{% if subsection['is_current'] %} toc-current{% endif %}"
+               href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=subsection['first_segment_id'], toc_jump=1, _anchor='segment-' ~ subsection['first_segment_id']) }}"
+               {% if subsection['is_current'] %}aria-current="page"{% endif %}>{{ subsection['title'] }}</a>
+          {% endfor %}
         {% endfor %}
       </nav>
     </details>
@@ -81,9 +86,10 @@
     readerToc.removeAttribute("open");
   }
   // 搜索命中跳转（?highlight=1）保留锚点定位到命中段落；
-  // 普通章节切换（目录、上一章/下一章、刷新）则去掉 hash 的滚动效应，停在页面顶部。
+  // 二级目录跳转（?toc_jump=1）同样保留锚点；普通章节切换则停在页面顶部。
   const jumpToHighlight = {{ "true" if primary_highlight_segment_id else "false" }};
-  if (jumpToHighlight) {
+  const jumpToTocSubsection = new URLSearchParams(window.location.search).get("toc_jump") === "1";
+  if (jumpToHighlight || jumpToTocSubsection) {
     if (!window.location.hash) {
       window.location.hash = "segment-{{ target['id'] }}";
     }
@@ -99,7 +105,7 @@
   // 把当前章节（服务端按 segment id 用 aria-current 标出）滚入目录可视区中部；
   // 只滚目录容器本身，已可见时不动。
   const revealTocCurrent = () => {
-    const item = document.querySelector('.toc-item[aria-current="page"]');
+    const item = document.querySelector('.toc-subitem[aria-current="page"], .toc-item[aria-current="page"]');
     if (!item) return;
     const box = [document.querySelector(".toc-list"), readerToc]
       .find((el) => el && el.scrollHeight > el.clientHeight + 1);

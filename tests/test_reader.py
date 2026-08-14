@@ -142,6 +142,71 @@ class ReaderTests(unittest.TestCase):
         numeric = next(block for block in blocks if block["first_segment_id"] == 211)
         self.assertEqual(numeric["kind"], "chapter")
 
+    def test_reader_toc_infers_numbered_subsections_and_marks_current_one(self):
+        self._add_reader_segments([
+            (310, 20, "第四章 寻羊冒险记Ⅰ", "１ 奇怪的男人．序"),
+            (311, 21, "第四章 寻羊冒险记Ⅰ", "第一小节正文"),
+            (312, 22, "第四章 寻羊冒险记Ⅰ", "２ 奇怪的男人"),
+            (313, 23, "第四章 寻羊冒险记Ⅰ", "第二小节正文"),
+            (314, 24, "第四章 寻羊冒险记Ⅰ", "３ 有关＂先生＂的事"),
+            (315, 25, "第四章 寻羊冒险记Ⅰ", "第三小节正文"),
+        ])
+
+        con = db.connect()
+        chapter = db.get_reader_chapter(con, 1, 315)
+        con.close()
+
+        block = next(item for item in chapter["toc"] if item["first_segment_id"] == 310)
+        self.assertEqual(
+            [item["title"] for item in block["subsections"]],
+            ["１ 奇怪的男人．序", "２ 奇怪的男人", "３ 有关＂先生＂的事"],
+        )
+        self.assertEqual(
+            [(item["first_segment_id"], item["first_seq"]) for item in block["subsections"]],
+            [(310, 20), (312, 22), (314, 24)],
+        )
+        self.assertEqual(
+            [item["is_current"] for item in block["subsections"]], [False, False, True]
+        )
+
+        body = self.client.get("/edition/1/read/315").get_data(as_text=True)
+        self.assertIn('class="toc-item toc-subitem"', body)
+        self.assertEqual(body.count('class="toc-item toc-subitem'), 3)
+        self.assertIn(
+            '/edition/1/read/314?toc_jump=1#segment-314', body,
+        )
+        self.assertIn('class="toc-item toc-subitem toc-current"', body)
+
+    def test_number_like_body_segment_is_not_a_subsection(self):
+        self._add_reader_segments([
+            (320, 30, "第五章", "章节正文开头"),
+            (321, 31, "第五章", "５．６．７……"),
+            (322, 32, "第五章", "章节正文结尾"),
+        ])
+
+        con = db.connect()
+        blocks = db.get_reader_blocks(con, 1)
+        con.close()
+
+        block = next(item for item in blocks if item["first_segment_id"] == 320)
+        self.assertEqual(block["subsections"], [])
+
+    def test_symbol_subsection_and_plain_chapter_toc_remain_supported(self):
+        self._add_reader_segments([
+            (330, 40, "第六章", "◎星期三下午的野餐"),
+            (331, 41, "第六章", "野餐正文"),
+        ])
+
+        con = db.connect()
+        chapter = db.get_reader_chapter(con, 1, 331)
+        con.close()
+
+        block = next(item for item in chapter["toc"] if item["first_segment_id"] == 330)
+        self.assertEqual(block["subsections"][0]["title"], "◎星期三下午的野餐")
+        self.assertTrue(block["subsections"][0]["is_current"])
+        plain = next(item for item in chapter["toc"] if item["first_segment_id"] == 137)
+        self.assertEqual(plain["subsections"], [])
+
     def test_read_edition_endpoint_builds_both_routes(self):
         rules = {rule.rule for rule in webapp.app.url_map.iter_rules("read_edition")}
         self.assertEqual(rules, {
@@ -188,6 +253,7 @@ class ReaderTests(unittest.TestCase):
 
         self.assertEqual(body.count("toc-current"), 1)
         self.assertIn('class="toc-item toc-chapter toc-current"', body)
+        self.assertNotIn('class="toc-item toc-subitem', body)
         self.assertNotIn("reader-paragraph reader-target", body)
 
     def test_search_highlight_only_marks_target_paragraph(self):
