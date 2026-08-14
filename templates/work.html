@@ -23,12 +23,13 @@
   <h2>{{ t('text_editions') }}</h2>
   {% if editions %}
   <table class="shelf edition-table">
-    <thead><tr><th class="edition-language">{{ t('language') }}</th><th class="edition-book">{{ t('volume') }}</th><th class="edition-format">{{ t('format') }}</th><th class="edition-filename">{{ t('file') }}</th><th class="edition-count">{{ t('segment_count') }}</th><th class="edition-index">{{ t('index') }}</th><th class="edition-read">{{ t('read') }}</th><th class="edition-note">{{ t('notes') }}</th><th class="edition-delete">{{ t('delete') }}</th></tr></thead>
+    <thead><tr><th class="edition-language">{{ t('language') }}</th><th class="edition-book">{{ t('volume') }}</th><th class="edition-label">{{ t('edition') }}</th><th class="edition-format">{{ t('format') }}</th><th class="edition-filename">{{ t('file') }}</th><th class="edition-count">{{ t('segment_count') }}</th><th class="edition-index">{{ t('index') }}</th><th class="edition-read">{{ t('read') }}</th><th class="edition-note">{{ t('notes') }}</th><th class="edition-delete">{{ t('delete') }}</th></tr></thead>
     <tbody>
     {% for e in editions %}
       <tr>
         <td class="edition-language"><span class="lang-badge edition-language-badge lang-{{ e['language'] }}">{{ t('language_' ~ e['language']) }}</span></td>
         <td class="edition-book">{% if e['book_no'] is not none %}BOOK {{ e['book_no'] }}{% else %}—{% endif %}</td>
+        <td class="edition-label"><span class="edition-label-text" title="{{ e['edition_label'] or '' }}">{{ e['edition_label'] or '—' }}</span></td>
         <td class="edition-format">{{ e['format']|upper }}{% if e['has_pages'] %} · <span class="dim">{{ t('work_page_numbers') }}</span>{% endif %}</td>
         <td class="edition-filename dim"><span class="edition-filename-text" title="{{ e['filename'] or '' }}">{{ e['filename'] or '' }}</span></td>
         <td class="edition-count">{{ e['n_segments'] }}</td>
@@ -55,8 +56,10 @@
       </tr>
       {% if writes_allowed %}
       <tr class="edition-note-row" id="edition-note-{{ e['id'] }}" hidden>
-        <td colspan="9">
+        <td colspan="10">
           <form class="edition-note-panel" action="{{ url_for('update_edition_note', work_id=work['id'], edition_id=e['id']) }}" method="post">
+            <label for="edition-label-{{ e['id'] }}">{{ t('edition_label') }}</label>
+            <input class="edition-label-input" id="edition-label-{{ e['id'] }}" name="edition_label" value="{{ e['edition_label'] or '' }}">
             <label for="edition-notes-{{ e['id'] }}">{{ t('edition_note') }}</label>
             <textarea class="edition-note-textarea" id="edition-notes-{{ e['id'] }}" name="notes" rows="3">{{ e['notes'] or '' }}</textarea>
             <div class="edition-note-actions">
@@ -87,6 +90,7 @@
       <option value="2">BOOK 2</option>
       <option value="3">BOOK 3</option>
     </select>
+    <input type="text" name="edition_label" aria-label="{{ t('edition_label_optional') }}" placeholder="{{ t('edition_label_optional') }}">
     <button type="submit">{{ t('upload_and_index') }}</button>
   </form>
   {% endif %}

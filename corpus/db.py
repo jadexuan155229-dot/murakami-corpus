@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS editions (
     has_pages   INTEGER DEFAULT 0,       -- PDF 是否带可引用页码
     notes       TEXT,
     indexed_at  TEXT,                    -- 完成全文索引的时间；NULL = 未索引
-    book_no     INTEGER                  -- 分册编号；NULL 表示未指定
+    book_no     INTEGER,                 -- 分册编号；NULL 表示未指定
+    edition_label TEXT                   -- 自由填写的译本/版本标记；NULL 表示未指定
 );
 
 CREATE TABLE IF NOT EXISTS segments (
@@ -217,6 +218,8 @@ def init_db() -> None:
     }
     if "book_no" not in edition_columns:
         con.execute("ALTER TABLE editions ADD COLUMN book_no INTEGER")
+    if "edition_label" not in edition_columns:
+        con.execute("ALTER TABLE editions ADD COLUMN edition_label TEXT")
     segment_columns = {
         row["name"] for row in con.execute("PRAGMA table_info(segments)")
     }
@@ -346,12 +349,13 @@ class EditionFileRestoreError(EditionDeleteError):
     pass
 
 
-def update_edition_notes(
+def update_edition_metadata(
     work_id: int,
     edition_id: int,
     notes: str | None,
+    edition_label: str | None,
 ) -> None:
-    """只更新归属作品下一个 edition 的备注，不触及文本或索引。"""
+    """更新归属作品下一个 edition 的显示元数据，不触及文本或索引。"""
     con = connect()
     try:
         con.execute("BEGIN IMMEDIATE")
@@ -370,8 +374,8 @@ def update_edition_notes(
                 f"版本 {edition_id} 不属于作品 {work_id}"
             )
         con.execute(
-            "UPDATE editions SET notes=? WHERE id=? AND work_id=?",
-            (notes, edition_id, work_id),
+            "UPDATE editions SET notes=?, edition_label=? WHERE id=? AND work_id=?",
+            (notes, edition_label, edition_id, work_id),
         )
         con.commit()
     except Exception:
@@ -380,6 +384,23 @@ def update_edition_notes(
         raise
     finally:
         con.close()
+
+
+def update_edition_notes(
+    work_id: int,
+    edition_id: int,
+    notes: str | None,
+) -> None:
+    """兼容旧调用方：仅更新版本备注。"""
+    con = connect()
+    try:
+        edition = con.execute(
+            "SELECT edition_label FROM editions WHERE id=?", (edition_id,)
+        ).fetchone()
+        edition_label = edition["edition_label"] if edition is not None else None
+    finally:
+        con.close()
+    update_edition_metadata(work_id, edition_id, notes, edition_label)
 
 
 def work_storage_folder(work_id: int, title_zh: str) -> str:
@@ -1042,7 +1063,7 @@ def search(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
+               e.id AS edition_id, e.language, e.book_no, e.edition_label, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
         FROM segments_fts f
         JOIN segments s ON s.id = f.segment_id
@@ -1089,7 +1110,7 @@ def search_grouped(
     sql = f"""
         WITH matches AS (
             SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-                   e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
+                   e.id AS edition_id, e.language, e.book_no, e.edition_label, e.format, e.filename, e.has_pages,
                    w.id AS work_id, w.title_zh, w.title_ja, w.title_en, w.year, w.genres
             FROM segments_fts f
             JOIN segments s ON s.id = f.segment_id
@@ -1112,7 +1133,7 @@ def search_grouped(
             FROM matches
         )
         SELECT segment_id, content, chapter, page, printed_page, seq,
-               edition_id, language, book_no, format, filename, has_pages,
+               edition_id, language, book_no, edition_label, format, filename, has_pages,
                work_id, title_zh, title_ja, title_en, year, genres,
                total_hits, edition_counts.total_hit_editions
         FROM ranked
@@ -1137,7 +1158,7 @@ def search_work(
         return []
     sql = """
         SELECT s.id AS segment_id, s.content, s.chapter, s.page, s.printed_page, s.seq,
-               e.id AS edition_id, e.language, e.book_no, e.format, e.filename, e.has_pages,
+               e.id AS edition_id, e.language, e.book_no, e.edition_label, e.format, e.filename, e.has_pages,
                w.id AS work_id, w.title_zh, w.title_ja, w.title_en,
                w.year, w.genres
         FROM segments_fts f

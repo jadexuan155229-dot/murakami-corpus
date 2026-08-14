@@ -128,6 +128,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   font: inherit; border: 1px solid var(--rule); background: var(--paper-high);
   color: var(--ink); padding: .42em .5em; border-radius: 3px;
 }
+.upload input[type=text] {
+  font: inherit; min-width: 10rem; padding: .42em .5em;
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: var(--paper-high); color: var(--ink);
+}
 button {
   font: inherit; padding: .45em 1.15em; border-radius: 3px; cursor: pointer;
   letter-spacing: .06em;
@@ -422,8 +427,13 @@ html[lang="en"] .work-meta { grid-template-columns: 7.25em 1fr; }
 .edition-table { table-layout: fixed; }
 .edition-table .edition-language { width: 6.25rem; }
 .edition-table .edition-book { width: 5.5rem; white-space: nowrap; }
+.edition-table .edition-label { width: 9rem; min-width: 0; }
 .edition-table .edition-format { width: 6.5rem; white-space: nowrap; }
-.edition-table .edition-filename { width: 37%; max-width: 24rem; min-width: 0; }
+.edition-table .edition-filename { width: 29%; max-width: 20rem; min-width: 0; }
+.edition-label-text {
+  display: block; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
 .edition-filename-text {
   display: block; min-width: 0; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
@@ -452,6 +462,11 @@ html[lang="en"] .work-meta { grid-template-columns: 7.25em 1fr; }
   border-left: 3px solid var(--wine); background: var(--paper-shade);
 }
 .edition-note-panel label { display: block; margin-bottom: .38rem; color: var(--ink-soft); font-size: .86rem; letter-spacing: .08em; }
+.edition-label-input {
+  display: block; width: min(100%, 28rem); margin-bottom: .75rem;
+  padding: .5rem .65rem; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--paper-high); color: var(--ink); font: inherit;
+}
 .edition-note-textarea {
   display: block; width: 100%; min-height: 4.8rem; resize: vertical;
   padding: .5rem .65rem; border: 1px solid var(--rule); border-radius: 2px;
@@ -630,6 +645,7 @@ html[lang="en"] .work-meta { grid-template-columns: 7.25em 1fr; }
   .stats span + span { padding-left: 1.1rem; }
   table.shelf { display: block; overflow-x: auto; }
   .edition-table { max-width: 100%; }
+  .edition-table .edition-label { width: 9rem; }
   .edition-table .edition-filename { width: 10rem; }
   .search-results-layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .search-work-sidebar { width: 100%; }

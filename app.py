@@ -348,6 +348,9 @@ def group_search_hits_by_edition(rows, query):
                 "edition_id": edition_id,
                 "language": language,
                 "book_no": row["book_no"] if "book_no" in keys else None,
+                "edition_label": (
+                    row["edition_label"] if "edition_label" in keys else None
+                ),
                 "format": row["format"],
                 "filename": row["filename"] if "filename" in keys else None,
                 "has_pages": bool(row["has_pages"]) if "has_pages" in keys else False,
@@ -460,8 +463,9 @@ def delete_edition(work_id, edition_id):
 @admin_required
 def update_edition_note(work_id, edition_id):
     notes = (request.form.get("notes") or "").strip() or None
+    edition_label = (request.form.get("edition_label") or "").strip() or None
     try:
-        db.update_edition_notes(work_id, edition_id, notes)
+        db.update_edition_metadata(work_id, edition_id, notes, edition_label)
     except (db.WorkNotFoundError, db.EditionNotFoundError, db.EditionWorkMismatchError):
         abort(404)
     flash("版本备注已保存。", "success")
@@ -583,6 +587,7 @@ def upload(work_id):
     file = request.files.get("file")
     lang = request.form.get("lang", "zh")
     book_no_value = (request.form.get("book_no") or "").strip()
+    edition_label = (request.form.get("edition_label") or "").strip() or None
     if book_no_value not in {"", "1", "2", "3"}:
         abort(400, "分册仅支持 BOOK 1、BOOK 2 或 BOOK 3")
     book_no = int(book_no_value) if book_no_value else None
@@ -614,9 +619,9 @@ def upload(work_id):
         con = db.connect()
         try:
             cur = con.execute(
-                "INSERT INTO editions (work_id, language, book_no, format, filename, has_pages)"
-                " VALUES (?,?,?,?,?,?)",
-                (work_id, lang, book_no, suffix.lstrip("."), filename,
+                "INSERT INTO editions (work_id, language, book_no, edition_label, format, filename, has_pages)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (work_id, lang, book_no, edition_label, suffix.lstrip("."), filename,
                  1 if suffix == ".pdf" else 0),
             )
             edition_id = cur.lastrowid

@@ -299,6 +299,7 @@ class DeleteEditionTests(unittest.TestCase):
 
         self.assertIn('class="shelf edition-table"', body)
         self.assertIn('class="edition-filename dim"', body)
+        self.assertIn('<th class="edition-label">版本</th>', body)
         self.assertIn(
             f'class="edition-filename-text" title="{long_filename}">{long_filename}</span>',
             body,
@@ -326,18 +327,26 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertNotIn('aria-label="备注（已有备注）"', no_note_body)
 
         con = db.connect()
-        con.execute("UPDATE editions SET notes=?, book_no=? WHERE id=1", ("校对版备注", 1))
+        con.execute(
+            "UPDATE editions SET notes=?, book_no=?, edition_label=? WHERE id=1",
+            ("校对版备注", 1, "校对版"),
+        )
         con.commit()
         con.close()
 
         body = self.client.get("/work/1").get_data(as_text=True)
         self.assertIn('class="edition-book">BOOK 1</td>', body)
+        self.assertIn('class="edition-label-text" title="校对版">校对版</span>', body)
         self.assertIn('class="edition-note-toggle"', body)
         self.assertIn('aria-label="备注（已有备注）"', body)
         self.assertIn('class="edition-note-dot"', body)
         self.assertIn('id="edition-note-1" hidden', body)
-        self.assertIn('colspan="9"', body)
+        self.assertIn('colspan="10"', body)
         self.assertIn('action="/work/1/edition/1/note" method="post"', body)
+        self.assertIn(
+            'class="edition-label-input" id="edition-label-1" name="edition_label" value="校对版">',
+            body,
+        )
         self.assertIn(
             'class="edition-note-textarea" id="edition-notes-1" name="notes" rows="3">校对版备注</textarea>',
             body,
@@ -345,7 +354,7 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertIn('aria-expanded="false"', body)
         self.assertIn('aria-controls="edition-note-1"', body)
 
-    def test_note_route_saves_and_clears_notes_without_changing_text_or_index(self):
+    def test_note_route_saves_metadata_without_changing_text_or_index(self):
         con = db.connect()
         before_segments = [
             tuple(row) for row in con.execute(
@@ -360,7 +369,8 @@ class DeleteEditionTests(unittest.TestCase):
         con.close()
 
         saved = self.client.post(
-            "/work/1/edition/1/note", data={"notes": "  版本校注  "}
+            "/work/1/edition/1/note",
+            data={"notes": "  版本校注  ", "edition_label": "  林少华译  "},
         )
         self.assertEqual(saved.status_code, 302)
         self.assertTrue(saved.headers["Location"].endswith("/work/1"))
@@ -369,6 +379,10 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertEqual(
             con.execute("SELECT notes FROM editions WHERE id=1").fetchone()["notes"],
             "版本校注",
+        )
+        self.assertEqual(
+            con.execute("SELECT edition_label FROM editions WHERE id=1").fetchone()["edition_label"],
+            "林少华译",
         )
         after_segments = [
             tuple(row) for row in con.execute(
@@ -385,12 +399,17 @@ class DeleteEditionTests(unittest.TestCase):
         self.assertEqual(after_fts, before_fts)
 
         cleared = self.client.post(
-            "/work/1/edition/1/note", data={"notes": "  \n  "}
+            "/work/1/edition/1/note",
+            data={"notes": "  \n  ", "edition_label": "施小炜译"},
         )
         self.assertEqual(cleared.status_code, 302)
         con = db.connect()
         self.assertIsNone(
             con.execute("SELECT notes FROM editions WHERE id=1").fetchone()["notes"]
+        )
+        self.assertEqual(
+            con.execute("SELECT edition_label FROM editions WHERE id=1").fetchone()["edition_label"],
+            "施小炜译",
         )
         con.close()
 

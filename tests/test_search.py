@@ -458,12 +458,13 @@ class SearchPageTests(unittest.TestCase):
     def test_same_language_editions_are_separated_with_metadata_and_navigation(self):
         con = db.connect()
         con.execute(
-            "UPDATE editions SET filename=? WHERE id=120", ("kafka_zh.epub",)
+            "UPDATE editions SET filename=?, edition_label=? WHERE id=120",
+            ("kafka_zh.epub", "林少华译"),
         )
         con.execute(
             """INSERT INTO editions
-               (id, work_id, language, format, filename, has_pages, indexed_at)
-               VALUES (122, 12, 'zh', 'pdf', 'kafka_zh_printed.pdf', 1, ?)""",
+               (id, work_id, language, edition_label, format, filename, has_pages, indexed_at)
+               VALUES (122, 12, 'zh', '施小炜译', 'pdf', 'kafka_zh_printed.pdf', 1, ?)""",
             ("2026-01-01T00:00:00+00:00",),
         )
         db.insert_segments(
@@ -514,16 +515,31 @@ class SearchPageTests(unittest.TestCase):
         self.assertIn('class="search-language-group"', body)
         self.assertIn('<h3>中文</h3>', body)
         self.assertIn('aria-label="中文命中版本"', body)
-        self.assertIn('href="#edition-results-120">EPUB · 1</a>', body)
-        self.assertIn('href="#edition-results-122">PDF · 带页码 · 2</a>', body)
+        self.assertIn('href="#edition-results-120">林少华译 · EPUB · 1</a>', body)
+        self.assertIn('href="#edition-results-122">施小炜译 · PDF · 带页码 · 2</a>', body)
         self.assertIn('id="edition-results-120"', body)
         self.assertIn('id="edition-results-122"', body)
-        self.assertIn("中文 · EPUB", body)
-        self.assertIn("中文 · PDF · 带页码", body)
+        self.assertIn("中文 · 林少华译 · EPUB", body)
+        self.assertIn("中文 · 施小炜译 · PDF · 带页码", body)
         self.assertIn("kafka_zh.epub", body)
         self.assertIn("kafka_zh_printed.pdf", body)
         self.assertIn("p.3 · PDF 20", body)
         self.assertIn("p.4 · PDF 21", body)
+
+        con = db.connect()
+        rows = db.search(con, "editionneedle")
+        grouped_rows = db.search_grouped(con, "editionneedle")
+        work_rows = db.search_work(con, "editionneedle", 12)
+        con.close()
+        self.assertEqual(
+            {row["edition_label"] for row in rows}, {"林少华译", "施小炜译"}
+        )
+        self.assertEqual(
+            {row["edition_label"] for row in grouped_rows}, {"林少华译", "施小炜译"}
+        )
+        self.assertEqual(
+            {row["edition_label"] for row in work_rows}, {"林少华译", "施小炜译"}
+        )
 
         epub_block = re.search(
             r'<section class="search-edition-group" id="edition-results-120">(?P<body>.*?)</section>',
@@ -540,6 +556,45 @@ class SearchPageTests(unittest.TestCase):
         for segment_id in pdf_segment_ids:
             self.assertIn(f'data-segment-id="{segment_id}"', pdf_block)
 
+    def test_unlabelled_editions_keep_existing_search_navigation_and_titles(self):
+        con = db.connect()
+        con.execute(
+            """INSERT INTO editions
+               (id, work_id, language, format, has_pages, indexed_at)
+               VALUES (121, 12, 'zh', 'pdf', 1, ?)""",
+            ("2026-01-01T00:00:00+00:00",),
+        )
+        db.insert_segments(
+            con,
+            120,
+            [{
+                "seq": 2,
+                "chapter": "第一章",
+                "page": None,
+                "content": "unlabellededition epub text",
+            }],
+        )
+        db.insert_segments(
+            con,
+            121,
+            [{
+                "seq": 1,
+                "chapter": None,
+                "page": 20,
+                "content": "unlabellededition pdf text",
+            }],
+        )
+        con.commit()
+        con.close()
+
+        body = self.client.get("/search?q=unlabellededition").get_data(as_text=True)
+
+        self.assertIn('href="#edition-results-120">EPUB · 1</a>', body)
+        self.assertIn('href="#edition-results-121">PDF · 带页码 · 1</a>', body)
+        self.assertIn("中文 · EPUB", body)
+        self.assertIn("中文 · PDF · 带页码", body)
+        self.assertNotIn("未指定版本", body)
+
     def test_numbered_editions_sort_and_display_book_labels(self):
         con = db.connect()
         con.executemany(
@@ -552,6 +607,7 @@ class SearchPageTests(unittest.TestCase):
                 (122, 2, "2026-01-01T00:00:00+00:00"),
             ],
         )
+        con.execute("UPDATE editions SET edition_label=? WHERE id=121", ("文库版",))
         con.execute("UPDATE editions SET language='ja' WHERE id=120")
         for edition_id in (120, 121, 122, 123):
             db.insert_segments(
@@ -583,11 +639,11 @@ class SearchPageTests(unittest.TestCase):
             re.findall(r'href="#edition-results-(\d+)"', nav),
             ["121", "122", "123", "120"],
         )
-        self.assertIn('>BOOK 1 · EPUB · 1</a>', nav)
+        self.assertIn('>BOOK 1 · 文库版 · EPUB · 1</a>', nav)
         self.assertIn('>BOOK 2 · EPUB · 1</a>', nav)
         self.assertIn('>BOOK 3 · EPUB · 1</a>', nav)
         self.assertIn('>EPUB · 1</a>', nav)
-        self.assertIn("日文 · BOOK 1 · EPUB", body)
+        self.assertIn("日文 · BOOK 1 · 文库版 · EPUB", body)
         self.assertIn("日文 · BOOK 2 · EPUB", body)
         self.assertIn("日文 · BOOK 3 · EPUB", body)
         unnumbered = re.search(

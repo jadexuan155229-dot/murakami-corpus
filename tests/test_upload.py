@@ -38,7 +38,11 @@ class UploadTests(unittest.TestCase):
         self.client = webapp.app.test_client()
 
     def _upload(
-        self, filename: str, language: str = "zh", book_no: str | None = None
+        self,
+        filename: str,
+        language: str = "zh",
+        book_no: str | None = None,
+        edition_label: str | None = None,
     ):
         data = {
             "lang": language,
@@ -46,6 +50,8 @@ class UploadTests(unittest.TestCase):
         }
         if book_no is not None:
             data["book_no"] = book_no
+        if edition_label is not None:
+            data["edition_label"] = edition_label
         return self.client.post(
             "/work/1/upload",
             data=data,
@@ -94,6 +100,25 @@ class UploadTests(unittest.TestCase):
         self.assertIn(">BOOK 1<", body)
         self.assertIn('name="book_no"', body)
         self.assertIn(">未指定<", body)
+
+    def test_upload_saves_edition_label_and_renders_optional_field(self):
+        with self._successful_parse():
+            response = self._upload("林少华译.epub", edition_label="  林少华译  ")
+
+        edition = self._edition()
+        body = self.client.get("/work/1").get_data(as_text=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(edition["edition_label"], "林少华译")
+        self.assertIn('name="edition_label"', body)
+        self.assertIn('placeholder="版本标记（可选）"', body)
+        self.assertIn('class="edition-label-text" title="林少华译">林少华译</span>', body)
+
+    def test_upload_with_blank_edition_label_saves_null(self):
+        with self._successful_parse():
+            response = self._upload("空标记.epub", edition_label="  \n ")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIsNone(self._edition()["edition_label"])
 
     def test_japanese_epub_name_preserves_suffix(self):
         with self._successful_parse():
@@ -145,7 +170,7 @@ class UploadTests(unittest.TestCase):
     def test_work_storage_folder_preserves_chinese_title(self):
         self.assertEqual(db.work_storage_folder(1, "测试作品"), "w1_测试作品")
 
-    def test_init_db_migrates_legacy_editions_with_null_book_number(self):
+    def test_init_db_migrates_legacy_editions_with_null_book_number_and_label(self):
         legacy_path = Path(self.temp_dir.name) / "legacy.db"
         with patch.object(db, "DB_PATH", legacy_path):
             con = sqlite3.connect(legacy_path)
@@ -173,11 +198,15 @@ class UploadTests(unittest.TestCase):
             db.init_db()
             con = db.connect()
             columns = {row["name"] for row in con.execute("PRAGMA table_info(editions)")}
-            edition = con.execute("SELECT book_no FROM editions WHERE id=90").fetchone()
+            edition = con.execute(
+                "SELECT book_no, edition_label FROM editions WHERE id=90"
+            ).fetchone()
             con.close()
 
         self.assertIn("book_no", columns)
+        self.assertIn("edition_label", columns)
         self.assertIsNone(edition["book_no"])
+        self.assertIsNone(edition["edition_label"])
 
 
 if __name__ == "__main__":

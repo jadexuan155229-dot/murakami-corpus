@@ -18,7 +18,8 @@ CREATE TABLE editions (
     has_pages   INTEGER DEFAULT 0,       -- PDF 是否带可引用页码
     notes       TEXT,
     indexed_at  TEXT,                    -- 完成全文索引的时间；NULL = 未索引
-    book_no     INTEGER                  -- 分册编号；NULL 表示未指定
+    book_no     INTEGER,                 -- 分册编号；NULL 表示未指定
+    edition_label TEXT                   -- 自由填写的译本/版本标记；NULL 表示未指定
 );
 CREATE TABLE segments (
     id          INTEGER PRIMARY KEY,
