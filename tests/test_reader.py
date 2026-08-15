@@ -108,6 +108,27 @@ class ReaderTests(unittest.TestCase):
         con.commit()
         con.close()
 
+    def _seed_chaptered_pdf_reader_edition(self):
+        con = db.connect()
+        con.execute(
+            """INSERT INTO editions
+               (id, work_id, language, format, indexed_at)
+               VALUES (7, 1, 'zh', 'pdf', '2026-01-02')"""
+        )
+        con.executemany(
+            """INSERT INTO segments
+               (id, edition_id, seq, chapter, page, printed_page, content)
+               VALUES (?, 7, ?, ?, ?, ?, ?)""",
+            [
+                (701, 1, "前言", 1, None, "PDF preface."),
+                (702, 2, "第1章", 33, "1", "Chapter one, first PDF page."),
+                (703, 3, "第1章", 34, "2", "Chapter one, second PDF page."),
+                (704, 4, "后记", 100, None, "PDF afterword."),
+            ],
+        )
+        con.commit()
+        con.close()
+
     def _add_reader_segments(self, rows):
         con = db.connect()
         con.executemany(
@@ -283,6 +304,24 @@ class ReaderTests(unittest.TestCase):
             'id="segment-618" class="reader-paragraph reader-target segment-highlight-primary"',
             body,
         )
+
+    def test_pdf_with_chapters_reuses_toc_and_chapter_navigation(self):
+        self._seed_chaptered_pdf_reader_edition()
+
+        body = self.client.get("/edition/7/read/702").get_data(as_text=True)
+
+        self.assertIn('class="reader-layout"', body)
+        self.assertNotIn('reader-layout-pdf', body)
+        self.assertIn('class="reader-sidebar"', body)
+        self.assertIn("章节目录", body)
+        self.assertIn('class="toc-item toc-chapter toc-current"', body)
+        self.assertIn('/edition/7/read/701#segment-701', body)
+        self.assertIn('/edition/7/read/702#segment-702', body)
+        self.assertIn('/edition/7/read/704#segment-704', body)
+        self.assertEqual(body.count('class="chapter-nav'), 2)
+        self.assertIn('rel="prev" href="/edition/7/read/701#segment-701"', body)
+        self.assertIn('rel="next" href="/edition/7/read/704#segment-704"', body)
+        self.assertIn('id="pdf-page-33" class="pdf-reader-page"', body)
 
     def test_epub_reader_keeps_chapter_navigation_and_segment_anchor(self):
         body = self.client.get("/edition/1/read/160?highlight=1").get_data(as_text=True)

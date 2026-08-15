@@ -4,6 +4,12 @@
 {% set previous = chapter['previous'] %}
 {% set following = chapter['next'] %}
 {% set is_pdf = edition['format'] == 'pdf' %}
+{% set chapter_ui = namespace(show=not is_pdf) %}
+{% if is_pdf %}
+  {% for item in chapter['toc'] %}
+    {% if item['chapter'] %}{% set chapter_ui.show = true %}{% endif %}
+  {% endfor %}
+{% endif %}
 {% macro render_highlighted_text(parts, fallback) -%}
   {%- if parts -%}
     {%- for part in parts -%}
@@ -13,8 +19,8 @@
 {%- endmacro %}
 {% block title %}{% if is_pdf %}{{ edition['title_zh'] }}{% else %}{{ current['title'] }} · {{ edition['title_zh'] }}{% endif %}{% endblock %}
 {% block content %}
-<div class="reader-layout{% if is_pdf %} reader-layout-pdf{% endif %}" data-language="{{ edition['language'] }}">
-  {% if not is_pdf %}
+<div class="reader-layout{% if is_pdf and not chapter_ui.show %} reader-layout-pdf{% endif %}" data-language="{{ edition['language'] }}">
+  {% if chapter_ui.show %}
   <aside class="reader-sidebar">
     <details class="reader-toc" open>
       <summary>{{ t('table_of_contents') }}</summary>
@@ -44,7 +50,7 @@
       {% if not is_pdf %}<p class="reader-chapter-title">{{ current['title'] }}</p>{% endif %}
     </header>
 
-    {% if not is_pdf %}
+    {% if chapter_ui.show %}
     <nav class="chapter-nav" aria-label="{{ t('chapter_navigation') }}">
       {% if previous %}
         <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">{{ t('previous_chapter') }}</a>
@@ -68,7 +74,7 @@
       {% endfor %}
     </section>
 
-    {% if not is_pdf %}
+    {% if chapter_ui.show %}
     <nav class="chapter-nav chapter-nav-bottom" aria-label="{{ t('chapter_navigation') }}">
       {% if previous %}
         <a rel="prev" href="{{ url_for('read_edition', edition_id=edition['edition_id'], segment_id=previous['first_segment_id'], _anchor='segment-' ~ previous['first_segment_id']) }}">{{ t('previous_chapter') }}</a>

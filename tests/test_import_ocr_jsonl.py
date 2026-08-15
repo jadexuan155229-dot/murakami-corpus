@@ -148,6 +148,49 @@ class ImportOcrJsonlTests(unittest.TestCase):
             [(1, 1, None, "one"), (2, 3, "3", "three")],
         )
 
+    def test_optional_corpus_fields_control_order_chapter_and_inclusion(self):
+        self.write_jsonl([
+            {
+                "pdf_page": 1,
+                "text": "first in PDF, second in reading order",
+                "chapter": "第一章",
+                "reading_seq": 2,
+            },
+            {
+                "pdf_page": 2,
+                "text": "kept only for PDF coverage",
+                "chapter": "扉页",
+                "reading_seq": 3,
+                "include_in_corpus": False,
+            },
+            {
+                "pdf_page": 3,
+                "text": "third in PDF, first in reading order",
+                "chapter": "序章",
+                "reading_seq": 1,
+            },
+        ])
+
+        plan = self.plan()
+        result = importer.apply_import(plan, replace_existing=False, allow_partial=False)
+
+        con = db.connect()
+        rows = con.execute(
+            "SELECT seq, chapter, page, content FROM segments WHERE edition_id=1 ORDER BY seq"
+        ).fetchall()
+        con.close()
+        self.assertTrue(plan.has_complete_pdf_coverage)
+        self.assertEqual(len(plan.nonempty_records), 3)
+        self.assertEqual(len(plan.included_nonempty_records), 2)
+        self.assertEqual(result["inserted"], 2)
+        self.assertEqual(
+            [tuple(row) for row in rows],
+            [
+                (1, "序章", 3, "third in PDF, first in reading order"),
+                (2, "第一章", 1, "first in PDF, second in reading order"),
+            ],
+        )
+
     def test_existing_segments_refuse_without_replace_and_replace_clears_fts(self):
         con = db.connect()
         db.insert_segments(con, 1, [{"seq": 1, "chapter": None, "page": 1, "content": "old"}])
@@ -163,6 +206,25 @@ class ImportOcrJsonlTests(unittest.TestCase):
         result = importer.apply_import(plan, replace_existing=True, allow_partial=False)
         self.assertEqual(result["inserted"], 2)
         self.assertEqual(self.counts(), (2, 2))
+
+    def test_dry_run_with_replace_existing_reports_safe_for_complete_coverage(self):
+        con = db.connect()
+        db.insert_segments(con, 1, [{"seq": 1, "chapter": None, "page": 1, "content": "old"}])
+        con.commit()
+        con.close()
+        self.write_jsonl(self.records())
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            exit_code = importer.main([
+                "--edition-id", "1", "--input", str(self.jsonl_path), "--replace-existing",
+            ])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Safe to apply: yes.", output.getvalue())
+        self.assertNotIn("existing segments require", output.getvalue())
+        self.assertIn("DRY RUN ONLY — database unchanged.", output.getvalue())
+        self.assertEqual(self.counts(), (1, 1))
 
     def test_partial_data_is_valid_for_dry_run_but_apply_requires_allow_partial(self):
         self.write_jsonl(self.records((2, 3)))

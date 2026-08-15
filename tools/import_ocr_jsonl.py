@@ -39,6 +39,9 @@ class OcrRecord:
     pdf_page: int
     text: str
     printed_page: str | None
+    chapter: str | None
+    reading_seq: int | None
+    include_in_corpus: bool
 
 
 @dataclass(frozen=True)
@@ -76,6 +79,15 @@ class ImportPlan:
         return tuple(record for record in self.records if record.text.strip())
 
     @property
+    def included_nonempty_records(self) -> tuple[OcrRecord, ...]:
+        """正文非空且明确纳入语料库的页面。"""
+        return tuple(
+            record
+            for record in self.nonempty_records
+            if record.include_in_corpus
+        )
+
+    @property
     def empty_page_count(self) -> int:
         return len(self.records) - len(self.nonempty_records)
 
@@ -84,15 +96,24 @@ class ImportPlan:
         return sum(record.printed_page is not None for record in self.records)
 
     def segments(self) -> list[dict[str, Any]]:
+        records = sorted(
+            self.included_nonempty_records,
+            key=lambda record: (
+                record.reading_seq
+                if record.reading_seq is not None
+                else record.pdf_page,
+                record.pdf_page,
+            ),
+        )
         return [
             {
                 "seq": seq,
-                "chapter": None,
+                "chapter": record.chapter,
                 "page": record.pdf_page,
                 "printed_page": record.printed_page,
                 "content": record.text,
             }
-            for seq, record in enumerate(self.nonempty_records, start=1)
+            for seq, record in enumerate(records, start=1)
         ]
 
 
@@ -127,11 +148,27 @@ def read_ocr_jsonl(input_path: Path) -> tuple[OcrRecord, ...]:
                 if not isinstance(text, str):
                     raise OcrImportError(f"JSONL 第 {line_number} 行的 text 必须是字符串")
                 printed_page = raw.get("printed_page_candidate")
+                chapter = raw.get("chapter")
+                reading_seq = raw.get("reading_seq")
+                include_in_corpus = raw.get("include_in_corpus", True)
+                if reading_seq is not None and (
+                    isinstance(reading_seq, bool) or not isinstance(reading_seq, int)
+                ):
+                    raise OcrImportError(
+                        f"JSONL 第 {line_number} 行的 reading_seq 必须是整数"
+                    )
+                if not isinstance(include_in_corpus, bool):
+                    raise OcrImportError(
+                        f"JSONL 第 {line_number} 行的 include_in_corpus 必须是布尔值"
+                    )
                 records.append(
                     OcrRecord(
                         pdf_page=pdf_page,
                         text=text,
                         printed_page=None if printed_page is None else str(printed_page),
+                        chapter=None if chapter is None else str(chapter),
+                        reading_seq=reading_seq,
+                        include_in_corpus=include_in_corpus,
                     )
                 )
     except OSError as exc:
@@ -245,7 +282,7 @@ def apply_import(plan: ImportPlan, *, replace_existing: bool, allow_partial: boo
             (datetime.now(timezone.utc).isoformat(), plan.edition_id),
         )
         con.commit()
-        pages = [record.pdf_page for record in plan.nonempty_records]
+        pages = [record.pdf_page for record in plan.included_nonempty_records]
         return {
             "inserted": inserted,
             "fts_rows": fts_rows,
@@ -269,7 +306,7 @@ def _format_pages(pages: set[int], limit: int = 8) -> str:
     return shown if len(ordered) <= limit else f"{shown}, …"
 
 
-def print_plan(plan: ImportPlan) -> None:
+def print_plan(plan: ImportPlan, *, replace_existing: bool = False) -> None:
     """打印 dry-run 与 apply 共用的审计摘要。"""
     print(f"Work: {plan.work_title}")
     print(f"Edition: {plan.edition_id}")
@@ -281,6 +318,7 @@ def print_plan(plan: ImportPlan) -> None:
     print(f"PDF pages covered: {len(plan.record_pages)} / {plan.pdf_page_count}")
     print(f"Missing pages: {len(plan.missing_pages)}")
     print(f"OCR pages with text: {len(plan.nonempty_records)}")
+    print(f"OCR pages included in corpus: {len(plan.included_nonempty_records)}")
     print(f"Empty OCR pages: {plan.empty_page_count}")
     print(f"Printed-page candidates: {plan.printed_page_count}")
     if not plan.has_complete_pdf_coverage:
@@ -290,7 +328,7 @@ def print_plan(plan: ImportPlan) -> None:
         if plan.unexpected_pages:
             print(f"Unexpected PDF pages: {_format_pages(plan.unexpected_pages)}")
         print("Apply would be refused without --allow-partial.")
-    if plan.existing_segments:
+    if plan.existing_segments and not replace_existing:
         print("Safe to apply: no (existing segments require --replace-existing).")
     elif plan.has_complete_pdf_coverage:
         print("Safe to apply: yes.")
@@ -327,7 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         plan = build_import_plan(args.edition_id, args.input)
-        print_plan(plan)
+        print_plan(plan, replace_existing=args.replace_existing)
         if not args.apply:
             if plan.existing_segments and not args.replace_existing:
                 raise ImportSafetyError("Refusing to overwrite existing indexed segments.")
