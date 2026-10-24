@@ -1,12 +1,15 @@
 """Tests use synthetic texts, never the private corpus."""
 import sqlite3
+import json
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from corpus.sync import SyncError, export_snapshot, import_snapshot, _read_state, _descriptors, _fingerprint
+from corpus.sync import (SyncError, export_snapshot, import_snapshot, adopt_baseline,
+                         _read_state, _descriptors, _fingerprint,
+                         _logical_fingerprint)
 
 
 def library(root, value):
@@ -74,6 +77,69 @@ class PrivateSyncTests(unittest.TestCase):
                 out.writestr(name, b"bad" if name == "files/new.txt" else body)
         with self.assertRaises(SyncError):
             import_snapshot(bad, root=self.b, force=True)
+
+
+    def test_logical_hash_stable_when_sqlite_pages_change(self):
+        export_snapshot(self.first, root=self.a)
+        baseline = _read_state(self.a)["logical_fingerprint"]
+        self.assertEqual(_logical_fingerprint(self.a), baseline)
+        con = sqlite3.connect(self.a / "corpus.db")
+        con.execute("INSERT INTO example VALUES ('temporary')")
+        con.execute("DELETE FROM example WHERE content = 'temporary'")
+        con.commit()
+        con.close()
+        # Page freelists and byte layout may change without changing records.
+        self.assertEqual(_logical_fingerprint(self.a), baseline)
+        con = sqlite3.connect(self.a / "corpus.db")
+        con.execute("UPDATE example SET content = 'genuine edit'")
+        con.commit()
+        con.close()
+        self.assertNotEqual(_logical_fingerprint(self.a), baseline)
+
+    def test_legacy_state_requires_verified_adoption(self):
+        export_snapshot(self.first, root=self.a)
+        state_file = self.a / ".sync-state.json"
+        state = json.loads(state_file.read_text())
+        state.pop("logical_fingerprint")
+        state_file.write_text(json.dumps(state))
+        with self.assertRaisesRegex(SyncError, "adopt-baseline"):
+            export_snapshot(self.second, root=self.a)
+        self.assertEqual(adopt_baseline(self.first, root=self.a), state["snapshot_id"])
+        self.assertEqual(_read_state(self.a)["logical_fingerprint"],
+                         _logical_fingerprint(self.a))
+        con = sqlite3.connect(self.a / "corpus.db")
+        con.execute("UPDATE example SET content='later unsynced edit'")
+        con.commit()
+        con.close()
+        with self.assertRaisesRegex(SyncError, "changed"):
+            adopt_baseline(self.first, root=self.a)
+
+    def test_verified_legacy_import_state_can_continue(self):
+        export_snapshot(self.first, root=self.a)
+        import_snapshot(self.first, root=self.b, force=True)
+        state_file = self.b / ".sync-state.json"
+        state = json.loads(state_file.read_text())
+        state.pop("logical_fingerprint")
+        state_file.write_text(json.dumps(state))
+        adopt_baseline(self.first, root=self.b)
+        modify(self.a, "new after adoption")
+        export_snapshot(self.second, root=self.a)
+        import_snapshot(self.second, root=self.b)
+        self.assertEqual(_read_state(self.b)["snapshot_id"],
+                         _read_state(self.a)["snapshot_id"])
+
+    def test_schema_and_fts_changes_detected(self):
+        con = sqlite3.connect(self.a / "corpus.db")
+        con.execute("CREATE VIRTUAL TABLE search_test USING fts5(text)")
+        con.execute("INSERT INTO search_test(text) VALUES ('古い図書館')")
+        con.commit()
+        con.close()
+        initial = _logical_fingerprint(self.a)
+        con = sqlite3.connect(self.a / "corpus.db")
+        con.execute("INSERT INTO search_test(text) VALUES ('a new text')")
+        con.commit()
+        con.close()
+        self.assertNotEqual(initial, _logical_fingerprint(self.a))
 
 
 if __name__ == "__main__":
