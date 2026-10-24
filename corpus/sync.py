@@ -295,7 +295,12 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
                     raise SyncError("Diverged sync history; import refused (manual resolution needed)")
                 if _fingerprint(_descriptors(root)) != previous["fingerprint"]:
                     raise SyncError("Local library has unsynced changes; import refused")
-        _write_state(stage, manifest["snapshot_id"], manifest["fingerprint"])
+        # Content integrity is checked against the archive manifest above.
+        # A SQLite backup made on this machine may have different physical
+        # page bytes than the sender's database, even when all rows match.
+        # Record this machine's stable local snapshot fingerprint for guards.
+        local_fingerprint = _fingerprint(_descriptors(stage))
+        _write_state(stage, manifest["snapshot_id"], local_fingerprint)
         backup_target = None
         if root.exists():
             backups = safe_parent / BACKUP_FOLDER
