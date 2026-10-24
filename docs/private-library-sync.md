@@ -57,3 +57,31 @@ python -m unittest tests.test_sync
 同步任务不安装依赖，也不改变正在使用的解释器。源代码及说明更新后需要在另一台机器执行 `git pull`；真实语料库始终通过私人 ZIP 传输。
 
 **备份目录位置：** 为避免把受版权保护的备份放进 Git 项目，自动回滚备份保存在目标 `data` 文件夹所属项目的**上一级目录**。例如 Mac 使用 `~/projects/.murakami-sync-backups/`，Windows WSL 使用 `/mnt/c/Users/solus/Downloads/.murakami-sync-backups/`。此目录位于项目仓库之外，不参与 Git 提交；不要随意删除。
+
+## 2026-10：从旧的字节指纹迁移到逻辑指纹
+
+旧版同步标记只有 `fingerprint`，它计算 SQLite 备份文件的物理 SHA-256。即使数据库表和内容不变，文件字节也可能不同，造成假的「已修改」警告。新版使用数据库用户表的逻辑数据、数据库结构以及原始文件的 SHA-256，仍保留原快照 ID 与原始 ZIP 格式。
+
+**首次更新同步工具后，必须在两台电脑分别运行一次 `adopt-baseline`，并使用与当前同步标记对应的旧 ZIP。** 它将比较快照和本地内容，不替换 `corpus.db`、不移动 `files/`；只有一致才会给 `.sync-state.json` 增加 `logical_fingerprint` 字段。没有对应 ZIP、检查不一致、程序正在运行或数据库有未同步修改时，停止操作，不要强制覆盖或手动编辑标记。
+
+Mac（在 `~/projects/murakami-corpus`，使用 `conda activate murakami`）：
+
+```sh
+python -m corpus.sync adopt-baseline "$HOME/Downloads/murakami-20261024-mac.zip"
+```
+
+Windows WSL（在 `/mnt/c/Users/solus/Downloads/murakami-corpus`）：
+
+```sh
+./.venv/bin/python -B -m corpus.sync adopt-baseline "/mnt/c/Users/solus/Downloads/murakami-20261024-mac.zip"
+```
+
+成功后可只读检查本机标记：
+
+```sh
+python -c "from corpus import db; from corpus.sync import _read_state, _logical_fingerprint; s=_read_state(db.DATA_DIR); print('Snapshot:',s['snapshot_id']); print('逻辑书库一致:',s.get('logical_fingerprint')==_logical_fingerprint(db.DATA_DIR))"
+```
+
+Windows 上如使用特定解释器，将命令里的 `python` 换为 `./.venv/bin/python`。
+
+正常应显示 `逻辑书库一致: True`。**这个步骤不重新导出，不重复导入，不使用 `--force`。** 完成两机验证后再通过菜单使用常规导出/接收；数据包仍需私人传输。
