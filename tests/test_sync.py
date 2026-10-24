@@ -47,7 +47,7 @@ class PrivateSyncTests(unittest.TestCase):
             import_snapshot(self.first, root=self.b)
         import_snapshot(self.first, root=self.b, force=True)
         self.assertEqual((self.b / "files" / "sample.txt").read_text(), "猫 and 羊男")
-        backups = list((self.b.parent / ".murakami-sync-backups").iterdir())
+        backups = list((self.b.parent.parent / ".murakami-sync-backups").iterdir())
         self.assertEqual((backups[0] / "files" / "sample.txt").read_text(), "older")
 
     def test_forward_sync_and_divergence_guard(self):
