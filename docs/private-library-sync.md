@@ -44,3 +44,14 @@ Windows WSL 文件路径应使用 Linux 路径（例如 `/mnt/c/Users/solus/OneD
 ```sh
 python -m unittest tests.test_sync
 ```
+
+## VS Code 一键任务（Mac / Windows WSL）
+
+切换到 `feature/private-library-sync` 分支并在 VS Code 中通过 **Python: Select Interpreter** 选择项目的 Python（Mac 用 `murakami` Conda 环境，WSL 用项目原有 `.venv`）。然后按 `Cmd+Shift+P`（Windows 为 `Ctrl+Shift+P`）→ **Tasks: Run Task**，可选择：
+
+- **书库同步：导出私人快照**：输入新的 ZIP 路径。必须使用一个还不存在的文件名；建议附上日期、时间和设备名。
+- **书库同步：接收并备份（仅已建立同步关系）**：输入已收到的 ZIP 文件路径。遇到首次导入或冲突时任务会拒绝覆盖，不能靠反复点击解决。
+
+这两项任务不会自动执行 `--force`。如果是**第一次建立两台设备的同步关系**，必须先确认目标设备的本地书库有无后续新入库内容，再人工备份与执行首次导入流程。切勿在同步进行时打开网页版或桌面版；Windows WSL 中的路径要使用 `/mnt/c/...` 而非 `C:\\...`。输入路径可用 `~/...` 表示当前系统的用户目录。
+
+同步任务不安装依赖，也不改变正在使用的解释器。源代码及说明更新后需要在另一台机器执行 `git pull`；真实语料库始终通过私人 ZIP 传输。
