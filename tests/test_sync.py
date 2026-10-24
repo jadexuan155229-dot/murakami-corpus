@@ -129,6 +129,32 @@ class PrivateSyncTests(unittest.TestCase):
         self.assertEqual(_read_state(self.b)["snapshot_id"],
                          _read_state(self.a)["snapshot_id"])
 
+    def test_page_size_changes_do_not_change_logical_identity(self):
+        """Two databases with different physical sizes and identical rows match."""
+        from corpus.sync import _logical_db_digest
+        base = Path(self.tmp.name)
+        physical = []
+        for size in (1024, 8192):
+            path = base / f"layout-{size}.db"
+            con = sqlite3.connect(path)
+            con.execute(f"PRAGMA page_size = {size}")
+            con.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, body TEXT)")
+            con.execute("CREATE VIRTUAL TABLE fulltext USING fts5(body)")
+            for i in range(100):
+                body = f"虚构段落 {i}"
+                con.execute("INSERT INTO items VALUES (?, ?)", (i, body))
+                con.execute("INSERT INTO fulltext(rowid, body) VALUES (?, ?)", (i + 1, body))
+            con.commit()
+            con.close()
+            physical.append(path)
+        self.assertNotEqual(physical[0].stat().st_size, physical[1].stat().st_size)
+        self.assertEqual(_logical_db_digest(physical[0]), _logical_db_digest(physical[1]))
+        con = sqlite3.connect(physical[1])
+        con.execute("UPDATE items SET body='changed' WHERE id=1")
+        con.commit()
+        con.close()
+        self.assertNotEqual(_logical_db_digest(physical[0]), _logical_db_digest(physical[1]))
+
     def test_schema_and_fts_changes_detected(self):
         con = sqlite3.connect(self.a / "corpus.db")
         con.execute("CREATE VIRTUAL TABLE search_test USING fts5(text)")
