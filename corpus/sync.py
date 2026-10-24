@@ -273,7 +273,9 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
     if archive.is_relative_to(root):
         raise SyncError("Archive must live outside the active data directory")
     root.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".murakami-import-", dir=root.parent) as tmp:
+    # Keep temporary copies outside the Git worktree. Same filesystem as root.
+    safe_parent = root.parent.parent
+    with tempfile.TemporaryDirectory(prefix=".murakami-import-", dir=safe_parent) as tmp:
         stage = Path(tmp) / "data"
         stage.mkdir()
         manifest = _extract_verified(archive, stage)
@@ -296,7 +298,7 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
         _write_state(stage, manifest["snapshot_id"], manifest["fingerprint"])
         backup_target = None
         if root.exists():
-            backups = root.parent / BACKUP_FOLDER
+            backups = safe_parent / BACKUP_FOLDER
             backups.mkdir(exist_ok=True)
             backup_target = backups / (_utc_now().replace(":", "-") + "-"
                                        + uuid.uuid4().hex[:8])
