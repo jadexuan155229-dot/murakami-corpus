@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from corpus.sync import SyncError, export_snapshot, import_snapshot
+from corpus.sync import SyncError, export_snapshot, import_snapshot, _read_state, _descriptors, _fingerprint
 
 
 def library(root, value):
@@ -47,6 +47,7 @@ class PrivateSyncTests(unittest.TestCase):
             import_snapshot(self.first, root=self.b)
         import_snapshot(self.first, root=self.b, force=True)
         self.assertEqual((self.b / "files" / "sample.txt").read_text(), "猫 and 羊男")
+        self.assertEqual(_read_state(self.b)["fingerprint"], _fingerprint(_descriptors(self.b)))
         backups = list((self.b.parent.parent / ".murakami-sync-backups").iterdir())
         self.assertEqual((backups[0] / "files" / "sample.txt").read_text(), "older")
 
