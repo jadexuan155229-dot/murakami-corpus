@@ -55,3 +55,5 @@ python -m unittest tests.test_sync
 这两项任务不会自动执行 `--force`。如果是**第一次建立两台设备的同步关系**，必须先确认目标设备的本地书库有无后续新入库内容，再人工备份与执行首次导入流程。切勿在同步进行时打开网页版或桌面版；Windows WSL 中的路径要使用 `/mnt/c/...` 而非 `C:\\...`。输入路径可用 `~/...` 表示当前系统的用户目录。
 
 同步任务不安装依赖，也不改变正在使用的解释器。源代码及说明更新后需要在另一台机器执行 `git pull`；真实语料库始终通过私人 ZIP 传输。
+
+**备份目录位置：** 为避免把受版权保护的备份放进 Git 项目，自动回滚备份保存在目标 `data` 文件夹所属项目的**上一级目录**。例如 Mac 使用 `~/projects/.murakami-sync-backups/`，Windows WSL 使用 `/mnt/c/Users/solus/Downloads/.murakami-sync-backups/`。此目录位于项目仓库之外，不参与 Git 提交；不要随意删除。
