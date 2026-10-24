@@ -37,6 +37,62 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "书库同步：导出私人快照",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "corpus.sync",
+        "export",
+        "${input:murakamiExportArchive}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "关闭本地网页和桌面版后，输入新的 ZIP 路径。不会覆盖已有 ZIP。"
+    },
+    {
+      "label": "书库同步：接收并备份（仅已建立同步关系）",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "corpus.sync",
+        "import",
+        "${input:murakamiImportArchive}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false,
+        "clear": true
+      },
+      "problemMatcher": [],
+      "detail": "关闭两端程序并确认没有未同步修改后导入。若无同步历史会安全拒绝，不会强制覆盖。"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "murakamiExportArchive",
+      "type": "promptString",
+      "description": "导出 ZIP 的完整保存路径（须以 .zip 结尾，且文件尚不存在；可用 ~/Downloads/... 或 WSL /mnt/c/...）"
+    },
+    {
+      "id": "murakamiImportArchive",
+      "type": "promptString",
+      "description": "接收哪个 ZIP？输入快照文件完整路径（不会使用 --force；首次接收须单独确认并操作）"
     }
   ]
 }
