@@ -8,8 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from corpus.sync import (SyncError, export_snapshot, import_snapshot, adopt_baseline,
-                         _read_state, _descriptors, _fingerprint,
-                         _logical_fingerprint)
+                         _read_state, _logical_fingerprint)
 
 
 def library(root, value):
@@ -50,7 +49,7 @@ class PrivateSyncTests(unittest.TestCase):
             import_snapshot(self.first, root=self.b)
         import_snapshot(self.first, root=self.b, force=True)
         self.assertEqual((self.b / "files" / "sample.txt").read_text(), "猫 and 羊男")
-        self.assertEqual(_read_state(self.b)["fingerprint"], _fingerprint(_descriptors(self.b)))
+        self.assertEqual(_read_state(self.b)["logical_fingerprint"], _logical_fingerprint(self.b))
         backups = list((self.b.parent.parent / ".murakami-sync-backups").iterdir())
         self.assertEqual((backups[0] / "files" / "sample.txt").read_text(), "older")
 
@@ -70,6 +69,8 @@ class PrivateSyncTests(unittest.TestCase):
         export_snapshot(self.second, root=self.a)
         import_snapshot(self.second, root=self.b)
         self.assertTrue((self.b / "files" / "new.txt").exists())
+        self.assertEqual(_read_state(self.b)["logical_fingerprint"],
+                         _logical_fingerprint(self.b))
         bad = self.second.with_name("tampered.zip")
         with zipfile.ZipFile(self.second) as inp, zipfile.ZipFile(bad, "w") as out:
             for name in inp.namelist():
