@@ -64,16 +64,16 @@ python -m unittest tests.test_sync
 
 **首次更新同步工具后，必须在两台电脑分别运行一次 `adopt-baseline`，并使用与当前同步标记对应的旧 ZIP。** 它将比较快照和本地内容，不替换 `corpus.db`、不移动 `files/`；只有一致才会给 `.sync-state.json` 增加 `logical_fingerprint` 字段。没有对应 ZIP、检查不一致、程序正在运行或数据库有未同步修改时，停止操作，不要强制覆盖或手动编辑标记。
 
-Mac（在 `~/projects/murakami-corpus`，使用 `conda activate murakami`）：
+Mac（在项目根目录，使用对应 Conda 环境）：
 
 ```sh
 python -m corpus.sync adopt-baseline "$HOME/Downloads/murakami-20261024-mac.zip"
 ```
 
-Windows WSL（在 `/mnt/c/Users/solus/Downloads/murakami-corpus`）：
+Windows WSL（在项目根目录；将 `<windows-user>` 替换为本机用户名）：
 
 ```sh
-./.venv/bin/python -B -m corpus.sync adopt-baseline "/mnt/c/Users/solus/Downloads/murakami-20261024-mac.zip"
+./.venv/bin/python -B -m corpus.sync adopt-baseline "/mnt/c/Users/<windows-user>/Downloads/murakami-20261024-mac.zip"
 ```
 
 成功后可只读检查本机标记：
