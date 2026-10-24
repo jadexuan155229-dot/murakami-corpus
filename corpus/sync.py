@@ -93,6 +93,111 @@ def _descriptors(root: Path) -> list[dict]:
                  "sha256": _sha256(path)} for name, path in names]
 
 
+def _digest_piece(digest, value) -> None:
+    """Length-prefix each encoded value to avoid ambiguous hash boundaries."""
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True,
+                     separators=(",", ":")).encode("utf-8")
+    digest.update(len(raw).to_bytes(8, "big"))
+    digest.update(raw)
+
+
+def _typed_value(value):
+    """Portable, unambiguous representation of every SQLite scalar type."""
+    if value is None:
+        return ["null"]
+    if isinstance(value, int):
+        return ["integer", str(value)]
+    if isinstance(value, float):
+        return ["real", value.hex()]
+    if isinstance(value, bytes):
+        return ["blob", value.hex()]
+    if isinstance(value, str):
+        return ["text", value]
+    raise SyncError(f"Unexpected SQLite value type: {type(value).__name__}")
+
+
+def _logical_db_digest(database: Path) -> str:
+    """Hash SQL schema and logical rows, not SQLite page placement.
+
+    FTS5 shadow tables encode internal index layout. Read the public virtual
+    table instead; its searchable rows are the reproducible logical contents.
+    """
+    _validate_regular(database)
+    con = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)
+    digest = hashlib.sha256()
+    try:
+        objects = list(con.execute(
+            "SELECT type, name, tbl_name, sql FROM sqlite_master "
+            "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+        ))
+        virtuals = [
+            name for kind, name, _table, sql in objects
+            if kind == "table" and sql and
+            sql.lstrip().upper().startswith("CREATE VIRTUAL TABLE")
+        ]
+        shadow_prefixes = tuple(v + "_" for v in virtuals)
+        visible = [
+            obj for obj in objects
+            if not any(obj[1].startswith(prefix) for prefix in shadow_prefixes)
+        ]
+        _digest_piece(digest, ["sqlite-user-version",
+                               con.execute("PRAGMA user_version").fetchone()[0]])
+        _digest_piece(digest, ["sqlite-application-id",
+                               con.execute("PRAGMA application_id").fetchone()[0]])
+        _digest_piece(digest, visible)
+        for kind, name, _table, sql in visible:
+            if kind != "table":
+                continue
+            quoted = '"' + name.replace('"', '""') + '"'
+            fields = list(con.execute(f"PRAGMA table_info({quoted})"))
+            keys = sorted(
+                ((r[5], r[1]) for r in fields if r[5]), key=lambda x: x[0]
+            )
+            if sql and sql.lstrip().upper().startswith("CREATE VIRTUAL TABLE"):
+                order = "rowid"
+            elif keys:
+                order = ", ".join('"' + k.replace('"', '""') + '"' for _, k in keys)
+            else:
+                # Tables without explicit PK have no stable physical rowid
+                # guarantee after VACUUM. Sort by all logical columns.
+                order = ", ".join(str(i) for i in range(1, len(fields) + 1))
+                if not order:
+                    raise SyncError(f"Cannot fingerprint table without columns: {name}")
+            _digest_piece(digest, ["table", name])
+            query = f"SELECT * FROM {quoted} ORDER BY {order}"
+            for row in con.execute(query):
+                _digest_piece(digest, [_typed_value(v) for v in row])
+            _digest_piece(digest, ["end-table", name])
+        return digest.hexdigest()
+    finally:
+        con.close()
+
+
+def _logical_fingerprint_snapshot(snapshot: Path, descriptors: list[dict]) -> str:
+    originals = sorted(
+        (dict(path=d["path"], size=d["size"], sha256=d["sha256"])
+         for d in descriptors if d["path"] != "corpus.db"),
+        key=lambda d: d["path"]
+    )
+    payload = {"format": 1, "database_logical_sha256": _logical_db_digest(snapshot),
+               "original_files": originals}
+    return hashlib.sha256(json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
+
+
+def _logical_fingerprint(root: Path) -> str:
+    """Consistent database backup plus direct hashes of original files."""
+    with tempfile.TemporaryDirectory(prefix="murakami-logical-") as tmp:
+        snapshot = Path(tmp) / "corpus.db"
+        _snapshot_db(root / "corpus.db", snapshot)
+        originals = [
+            {"path": name, "size": path.stat().st_size, "sha256": _sha256(path)}
+            for name, path in _files(root)
+        ]
+        return _logical_fingerprint_snapshot(snapshot, originals)
+
+
 def _fingerprint(files: list[dict]) -> str:
     payload = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -108,14 +213,22 @@ def _read_state(root: Path) -> dict | None:
                 not isinstance(state.get("snapshot_id"), str) or
                 not isinstance(state.get("fingerprint"), str)):
             raise ValueError("invalid state")
+        logical = state.get("logical_fingerprint")
+        if logical is not None and (
+            not isinstance(logical, str) or len(logical) != 64
+        ):
+            raise ValueError("invalid logical_fingerprint")
         return state
     except (ValueError, OSError) as exc:
         raise SyncError(f"Cannot read sync state {path}: {exc}") from exc
 
 
-def _write_state(root: Path, snapshot_id: str, fingerprint: str) -> None:
+def _write_state(root: Path, snapshot_id: str, fingerprint: str,
+                 logical_fingerprint: str | None = None) -> None:
     state = {"format": FORMAT, "snapshot_id": snapshot_id,
              "fingerprint": fingerprint, "recorded_at": _utc_now()}
+    if logical_fingerprint is not None:
+        state["logical_fingerprint"] = logical_fingerprint
     temp = root / (STATE + ".tmp")
     temp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(temp, root / STATE)
@@ -154,6 +267,9 @@ def export_snapshot(output: Path, root: Path | None = None) -> str:
         raise SyncError("Export archive must be outside the data directory")
     output.parent.mkdir(parents=True, exist_ok=True)
     previous = _read_state(root)
+    if previous and "logical_fingerprint" not in previous:
+        raise SyncError("Legacy sync state needs adopt-baseline with the "
+                        "matching historical ZIP before the next export.")
     snapshot_id = uuid.uuid4().hex
     tmp_archive: Path | None = None
     with tempfile.TemporaryDirectory(prefix="murakami-export-") as tmp:
@@ -183,16 +299,20 @@ def export_snapshot(output: Path, root: Path | None = None) -> str:
                             "base_id": previous["snapshot_id"] if previous else None,
                             "exported_at": _utc_now(), "files": descriptors}
                 manifest["fingerprint"] = _fingerprint(descriptors)
+                manifest["logical_fingerprint"] = _logical_fingerprint_snapshot(
+                    consistent, descriptors
+                )
                 archive.writestr(MANIFEST,
                                  json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
             # Prevent marking a snapshot as current if the library changed while copying.
-            if _descriptors(root) != descriptors:
+            if _logical_fingerprint(root) != manifest["logical_fingerprint"]:
                 raise SyncError("Library changed during export; close the app and retry")
             if output.exists():
                 raise SyncError(f"Archive already exists; choose a new name: {output}")
             os.replace(tmp_archive, output)
             tmp_archive = None
-            _write_state(root, snapshot_id, manifest["fingerprint"])
+            _write_state(root, snapshot_id, manifest["fingerprint"],
+                         manifest["logical_fingerprint"])
         finally:
             if tmp_archive is not None:
                 tmp_archive.unlink(missing_ok=True)
@@ -279,6 +399,10 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
         stage = Path(tmp) / "data"
         stage.mkdir()
         manifest = _extract_verified(archive, stage)
+        incoming_logical = _logical_fingerprint(stage)
+        declared_logical = manifest.get("logical_fingerprint")
+        if declared_logical is not None and declared_logical != incoming_logical:
+            raise SyncError("Snapshot logical fingerprint mismatch")
         previous = _read_state(root) if root.exists() else None
         current_has_db = (root / "corpus.db").exists()
         if current_has_db:
@@ -286,21 +410,27 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
                 raise SyncError("Existing library has no sync history. First import needs "
                                 "--force (a local backup is kept). Check which library is newer.")
             if not force and previous:
+                baseline = previous.get("logical_fingerprint")
+                if baseline is None:
+                    raise SyncError("Legacy sync state needs adopt-baseline with the "
+                                    "matching historical ZIP before importing.")
+                unchanged = _logical_fingerprint(root) == baseline
                 if manifest["snapshot_id"] == previous["snapshot_id"]:
-                    if _fingerprint(_descriptors(root)) == previous["fingerprint"]:
+                    if unchanged and incoming_logical == baseline:
                         print("Already synchronized; no changes made.")
                         return manifest["snapshot_id"]
                     raise SyncError("Local library changed after previous sync; import refused")
                 if manifest.get("base_id") != previous["snapshot_id"]:
                     raise SyncError("Diverged sync history; import refused (manual resolution needed)")
-                if _fingerprint(_descriptors(root)) != previous["fingerprint"]:
+                if not unchanged:
                     raise SyncError("Local library has unsynced changes; import refused")
         # Content integrity is checked against the archive manifest above.
         # A SQLite backup made on this machine may have different physical
         # page bytes than the sender's database, even when all rows match.
         # Record this machine's stable local snapshot fingerprint for guards.
         local_fingerprint = _fingerprint(_descriptors(stage))
-        _write_state(stage, manifest["snapshot_id"], local_fingerprint)
+        _write_state(stage, manifest["snapshot_id"], local_fingerprint,
+                     incoming_logical)
         backup_target = None
         if root.exists():
             backups = safe_parent / BACKUP_FOLDER
@@ -320,6 +450,42 @@ def import_snapshot(archive: Path, *, root: Path | None = None, force: bool = Fa
     return manifest["snapshot_id"]
 
 
+def adopt_baseline(archive: Path, *, root: Path | None = None) -> str:
+    """Upgrade existing v1 sync state without ever replacing the library.
+
+    The historical archive must have the same snapshot id AND identical
+    logical database rows/schema and original file hashes.
+    """
+    root = Path(root or db.DATA_DIR).expanduser().resolve()
+    archive = Path(archive).expanduser().resolve()
+    if _app_likely_running():
+        raise SyncError("Stop the local app before adopting sync baseline")
+    previous = _read_state(root)
+    if not previous:
+        raise SyncError("No existing sync state; refusing to create an unverified baseline")
+    if previous.get("logical_fingerprint"):
+        baseline = previous["logical_fingerprint"]
+        if _logical_fingerprint(root) != baseline:
+            raise SyncError("Local corpus has changed since its recorded baseline")
+        print("Logical baseline already verified; no changes made.")
+        return previous["snapshot_id"]
+    with tempfile.TemporaryDirectory(prefix="murakami-adopt-") as tmp:
+        stage = Path(tmp) / "data"
+        stage.mkdir()
+        manifest = _extract_verified(archive, stage)
+        if manifest["snapshot_id"] != previous["snapshot_id"]:
+            raise SyncError("Snapshot ID mismatch; refusing baseline upgrade")
+        exported_logical = _logical_fingerprint(stage)
+        local_logical = _logical_fingerprint(root)
+        if exported_logical != local_logical:
+            raise SyncError("Local corpus differs from historical archive; "
+                            "baseline not adopted. Review changes manually.")
+        _write_state(root, previous["snapshot_id"], previous["fingerprint"],
+                     local_logical)
+    print("Baseline verified and upgraded (database contents not replaced).")
+    return previous["snapshot_id"]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Private single-writer library sync")
     sub = parser.add_subparsers(dest="operation", required=True)
@@ -329,10 +495,14 @@ def main(argv: list[str] | None = None) -> int:
     restore.add_argument("archive", type=Path, help="ZIP generated by the export command")
     restore.add_argument("--force", action="store_true",
                          help="Explicitly replace an untracked/diverged local library")
+    adopt = sub.add_parser("adopt-baseline", help="Verify and upgrade old sync state, without replacing corpus")
+    adopt.add_argument("archive", type=Path, help="ZIP matching the existing state snapshot ID")
     args = parser.parse_args(argv)
     try:
         if args.operation == "export":
             export_snapshot(args.archive)
+        elif args.operation == "adopt-baseline":
+            adopt_baseline(args.archive)
         else:
             import_snapshot(args.archive, force=args.force)
     except (SyncError, OSError, sqlite3.Error, zipfile.BadZipFile, ValueError) as exc:
