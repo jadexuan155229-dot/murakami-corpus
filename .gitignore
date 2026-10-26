@@ -27,3 +27,8 @@ Thumbs.db
 dist/
 build/
 .venv-win/
+
+# Private sync archives, markers and rollback backups
+.murakami-sync-backups/
+.sync-state.json
+*.zip
